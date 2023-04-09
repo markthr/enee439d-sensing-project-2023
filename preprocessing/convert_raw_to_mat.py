@@ -22,9 +22,9 @@ col_names = ['SubjectID', 'ActivityCode', 'TimeStampNanos', 'X', 'Y', 'Z']
 
 def remove_semi(string):
     if (string[-1] == ';'):
-        return string[0:-1]
+        return float(string[0:-1])
     else:
-        return string
+        return float(string)
 
 # ensure necessary folders for output exist
 for i, data_folder in enumerate(data_folders):
