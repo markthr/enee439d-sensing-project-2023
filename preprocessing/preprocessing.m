@@ -3,13 +3,12 @@ path = "J:/enee439d/datasets/wisdm-dataset";
 
 window_period = 5; % how often to process a new window in seconds
 window_memory = 1; % how many previous windows to include, can be a decimal.
-% Setting window_memory = 0 indicates that only the current window should be
-% included for processing.
+% Setting window_memory = 0 indicates that only the current window should be included for processing.
 
 % get letter for the 18 activities, A-S but without N
 activities = char([1:13, 15:19] + 'A' - 1);
 
-time_scale = 1E9; % seconds to nanos
+time_scale = int64(1E9); % seconds to nanos
 %% load directories
 watch_accel = dir(path + "/mat/watch/accel/*.mat");
 watch_gyro = dir(path + "/mat/watch/gyro/*.mat");
@@ -26,9 +25,9 @@ for i = 1:numel(watch_accel)
     assert(regexp(phone_gyro(i).name, match_subj) == 1, "Subject IDs do not match");
 end
 %%
-data_struct = load_data_struct(watch_accel(1));
+ds = load_data_struct(watch_accel(1));
 %% compare FSST with and without HPF
-data_a = data_struct.activity_data.A;
+data_a = ds.activity_data.A;
 t = double(data_a.TimeStampNanos) * 1E-9;
 ts = mean(diff(t));
 fs = 1/ts;
@@ -52,11 +51,11 @@ fsst(X_hp,fs, 'yaxis');
 
 %% iterate over subjects
 transform_fields = ['X', 'Y', 'Z'];
-disp(data_struct.subject)
+disp(ds.subject)
 for i = 1:numel(activities)
     activity = activities{i};
     disp(activity)
-    activity_data = data_struct.activity_data.(activity);
+    activity_data = ds.activity_data.(activity);
     
     % calculate average sampling time
     ts_avg = mean(diff(activity_data.TimeStampNanos));
@@ -85,23 +84,37 @@ for file_index = 1:numel(watch_accel)
     
     % iterate over activities
     for activity_index = 1:numel(activities)
+        % load activity data for each sensor
         activity = activities(activity_index);
-        w_acc = watch_accel_data.activity_data.(activity);
-        w_gyr = watch_gyro_data.activity_data.(activity);
-        p_acc = phone_accel_data.activity_data.(activity);
-        p_gyr = phone_gyro_data.activity_data.(activity);
-        sensors = [w_acc, w_gyr, p_acc, p_gyr];
-        disp('Begin')
-        beginnings = [w_acc.TimeStampNanos(1), w_gyr.TimeStampNanos(1), p_acc.TimeStampNanos(1), p_gyr.TimeStampNanos(1)];
-        t_0 = min(beginnings);
-        for i = 1:numel(sensors)
-            sensors(i).TimeStampNanos = sensors(i).TimeStampNanos - t_0;
-            disp(sensors(i).TimeStampNanos(1))
+        ds = struct; % "data struct" for holding each sensors data per activity 
+        ds.w_acc = watch_accel_data.activity_data.(activity);
+        ds.w_gyr = watch_gyro_data.activity_data.(activity);
+        ds.p_acc = phone_accel_data.activity_data.(activity);
+        ds.p_gyr = phone_gyro_data.activity_data.(activity);
+        fn = fieldnames(ds);
+        
+        % collate data from sensors
+
+        % ASSUMPTION: any 1+ second differences between initial timestamps
+        % across sensors is a result of the clocks not lining up and not a
+        % result of 1+ second lag between sensor startup time. A lag on the
+        % order of miliseconds is considered reasonable and not removed.
+        for i = 1:numel(fn)
+            % remove the part of offset that is greater than 1 second
+            ds.(fn{i}).TimeStampNanos = remove_offset_from_nanos(ds.(fn{i}).TimeStampNanos, time_scale);
         end
+        beginnings = [ds.w_acc.TimeStampNanos(1), ds.w_gyr.TimeStampNanos(1), ds.p_acc.TimeStampNanos(1), ds.p_gyr.TimeStampNanos(1)];
+        nano_alignments = get_alignment(beginnings, time_scale);
+        for i = 1:numel(fn)
+            % remove the part of offset that is greater than 1 second
+            ds.(fn{i}).TimeStampNanos = ds.(fn{i}).TimeStampNanos + nano_alignments(i);
+        end
+        
+        disp('Begin')
+        beginnings = [ds.w_acc.TimeStampNanos(1), ds.w_gyr.TimeStampNanos(1), ds.p_acc.TimeStampNanos(1), ds.p_gyr.TimeStampNanos(1)];
         disp(beginnings)
-        disp('End')
-        beginnings = [w_acc.TimeStampNanos(1), w_gyr.TimeStampNanos(1), p_acc.TimeStampNanos(1), p_gyr.TimeStampNanos(1)];
-        endings = [w_acc.TimeStampNanos(end), w_gyr.TimeStampNanos(end), p_acc.TimeStampNanos(end), p_gyr.TimeStampNanos(end)];
+        endings = [ds.w_acc.TimeStampNanos(end), ds.w_gyr.TimeStampNanos(end), ds.p_acc.TimeStampNanos(end), ds.p_gyr.TimeStampNanos(end)];
+        disp('Endings')
         disp(endings)
         disp('Duration')
         disp(double((endings - beginnings))/1000000000)
@@ -109,11 +122,18 @@ for file_index = 1:numel(watch_accel)
     break
 end
 %%
-transform_field = 'Y';
+activity_data = watch_accel_data.activity_data.A;
 ts_avg = mean(diff(activity_data.TimeStampNanos));
 w = kaiser(ceil(10E9/ts_avg),10);
-raw = activity_data.(transform_field);
+raw = activity_data.Y;
 [s, f, t] = stft(raw, 1E9/ts_avg, Window=w, FrequencyRange="onesided", overlap=199);
+subplot(2,1,1)
+surf(t, f, 20*log10(abs(s).^2), 'EdgeColor', 'none');
+activity_data = watch_accel_data.activity_data.B;
+ts_avg = mean(diff(activity_data.TimeStampNanos));
+raw = activity_data.Y;
+[s, f, t] = stft(raw, 1E9/ts_avg, Window=w, FrequencyRange="onesided", overlap=199);
+subplot(2,1,2)
 surf(t, f, 20*log10(abs(s).^2), 'EdgeColor', 'none');
 %%
 fs = 1000;
@@ -126,6 +146,30 @@ fsst(x,ts,'yaxis')
 
 title('Quadratic Chirp')
 
+%%
 function data_struct = load_data_struct(file_struct)
     data_struct = load([file_struct.folder '\' file_struct.name]);
+end
+
+function new_nanos = remove_offset_from_nanos(nanos, scale)
+    new_nanos = nanos - idivide(nanos(1), scale)*scale;
+end
+
+
+function alignments = get_alignment(beginnings, time_scale)
+    % heuristic: choose whatever ordering minimizes the average delay 
+    % between beginning samples
+    n = length(beginnings);
+    % calculate resulting delays for all choices of t_0
+    delays = zeros(n,n, 'int64');
+    for i = 1:n
+        delays(i,:) = beginnings - beginnings(i);
+    end
+    % add 1 second to negative values to get delay value
+    mask = delays<0;
+    % select minimum average delay
+    delays(mask) = time_scale - delays(mask);
+    [~, index] = min(mean(delays,2));
+    alignments = zeros(n,n, 'int64') - beginnings(index);
+    alignments(mask(index, :)) = alignments(mask(index, :)) + time_scale;
 end
