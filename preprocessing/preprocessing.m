@@ -1,8 +1,7 @@
 %% Setup
 path = "J:/enee439d/datasets/wisdm-dataset";
 
-window_period = 5; % how often to process a new window in seconds
-window_memory = 1; % how many previous windows to include, can be a decimal.
+period; % how often to process a new window in seconds
 % Setting window_memory = 0 indicates that only the current window should be included for processing.
 
 % get letter for the 18 activities, A-S but without N
@@ -75,6 +74,14 @@ for i = 1:numel(activities)
     
 end
 %%
+fsamp = 20;
+fcuts = [9 9.5];
+mags = [1 0];
+devs = [0.1 0.05];
+
+[n,Wn,beta,ftype] = kaiserord(fcuts,mags,devs,fsamp);
+hh = fir1(n,Wn,ftype,kaiser(n+1,beta),'noscale');
+%%
 % iterate over subjects
 for file_index = 1:numel(watch_accel)
     watch_accel_data = load_data_struct(watch_accel(file_index));
@@ -110,16 +117,39 @@ for file_index = 1:numel(watch_accel)
             ds.(fn{i}).TimeStampNanos = ds.(fn{i}).TimeStampNanos + nano_alignments(i);
         end
         
-        disp('Begin')
-        beginnings = [ds.w_acc.TimeStampNanos(1), ds.w_gyr.TimeStampNanos(1), ds.p_acc.TimeStampNanos(1), ds.p_gyr.TimeStampNanos(1)];
-        disp(beginnings)
-        endings = [ds.w_acc.TimeStampNanos(end), ds.w_gyr.TimeStampNanos(end), ds.p_acc.TimeStampNanos(end), ds.p_gyr.TimeStampNanos(end)];
-        disp('Endings')
-        disp(endings)
-        disp('Duration')
-        disp(double((endings - beginnings))/1000000000)
+        % assign 1 second groups
+        for i = 1:numel(fn)
+            ds.(fn{i}).Group = idivide(ds.(fn{i}).TimeStampNanos, 10*time_scale);
+        end
+        % get windowed data for each sensor
+        for i = 1:numel(fn)
+            % get first 51 XYZ values as a matrix, flip direction, then
+            % apply FIR filter to get initial values for delays/taps in
+            % order to avoid border effects
+            [~, taps] = filter(hh, 1, flip(xyz_to_mat(ds.(fn{i}), 1:n)), [], 2);
+            ds.(fn{i}).hh_vec = filter(hh, 1, xyz_to_mat(ds.(fn{i})), taps, 2);
+        end
+
+        % apply nufft to each set of windowed data
+        
+        
     end
     break
+end
+%% make table
+tabulate(ds.p_acc.Group)
+%% plot time delta
+seconds_w_acc = double(ds.w_acc.TimeStampNanos(400:900))*1E-9;
+plot(401:900, diff(seconds_w_acc))
+ylim([0, 0.4])
+xlabel('Sample')
+ylabel('Time Difference')
+%% a
+Y = nufft(double(ds.p_acc.hh_vec), double(ds.p_acc.TimeStampNanos), [], 2);
+for group_index = 1:numel(ds.p_acc.Group(end))
+    for 
+    unfft(ds.p_gyr.hh_vec(i,:))
+    
 end
 %%
 activity_data = watch_accel_data.activity_data.A;
@@ -172,4 +202,14 @@ function alignments = get_alignment(beginnings, time_scale)
     [~, index] = min(mean(delays,2));
     alignments = zeros(n,n, 'int64') - beginnings(index);
     alignments(mask(index, :)) = alignments(mask(index, :)) + time_scale;
+    
+end
+
+function matrix = xyz_to_mat(struct, sequence)
+    if(~exist('sequence','var'))
+        matrix = [struct.X; struct.Y; struct.Z];
+    else
+        matrix = [struct.X(sequence); struct.Y(sequence); struct.Z(sequence)];
+    end
+    
 end
