@@ -1,7 +1,8 @@
 %% Setup
 path = "J:/enee439d/datasets/wisdm-dataset";
 
-period; % how often to process a new window in seconds
+time_window = 5; % how often to process a new window in seconds
+max_window_error = 0.1; % the maximum percent a window can be too short by 
 % Setting window_memory = 0 indicates that only the current window should be included for processing.
 
 % get letter for the 18 activities, A-S but without N
@@ -131,7 +132,11 @@ for file_index = 1:numel(watch_accel)
         end
 
         % apply nufft to each set of windowed data
-        
+        for i = 1:numel(fn)
+            % TODO: this is incredibly inefficient. This should be updated
+            % to only evaluate non uniform STFTs where needed
+        end
+        break
         
     end
     break
@@ -147,10 +152,11 @@ ylabel('Time Difference')
 %% a
 Y = nufft(double(ds.p_acc.hh_vec), double(ds.p_acc.TimeStampNanos), [], 2);
 for group_index = 1:numel(ds.p_acc.Group(end))
-    for 
     unfft(ds.p_gyr.hh_vec(i,:))
     
 end
+%%
+
 %%
 activity_data = watch_accel_data.activity_data.A;
 ts_avg = mean(diff(activity_data.TimeStampNanos));
@@ -211,5 +217,66 @@ function matrix = xyz_to_mat(struct, sequence)
     else
         matrix = [struct.X(sequence); struct.Y(sequence); struct.Z(sequence)];
     end
+    
+end
+
+function [starts, ends] = partition_time_sequence(t, t_win, t_err)
+    starts = zeros(uint32(floor(t(end))), 1, 'uint32');
+    ends = zeros(uint32(floor(t(end))), 1, 'uint32');
+    
+    % get initial value for start times
+    for i = 1:numel(starts)
+        starts(i) = find(t>=(i-1), 1, 'first');
+    end
+    
+    % fix sequences to be a multiple of 100 in length
+    for i = (t_win+1):(numel(starts))
+        i_start = start_sec_index(i-t_win);
+        i_end = start_sec_index(i) - 1;
+        seq_len = i_end - i_start;
+        mod_100 = mod(seq_len, 100);
+        if(mod_100 == 0)
+            % the window lined up perfectly
+        elseif(seq_len < 100)
+            % the window was too short, extend it
+            if(i == t_win+1)
+                % cannot extend backwards, extend forwards. 
+                % 
+                % This complicates analysis, but this corner case can happen 
+                % only once peractivity so it should hopefully not be major.
+                % TODO: if the data towards the end gets discard, might as well
+                % shift everything forward such that there is enough data
+                % before the first window that backwards extension works
+                i_end = i_end + (100-mod_100);
+            else
+                % can extend backwards
+                i_start = i_start - (100-mod_100);
+            end
+        % if execution reaches here, sequence must be too long
+        elseif(t(i_end) - t(i_start-mod_100) > t_win - t_err)
+            % Window can be shortened without making the time covered by the
+            % window too short.
+            i_start = i_start - mod_100;
+        else
+            % the window is too long, but must be further lengthened to cover
+            % the minimum desired timespan while having the samples be a factor
+            % of 100
+            if(i == t_win+1)
+                % cannot extend backwards, extend forwards. Same drawbacks as
+                % above hold.
+                i_end = i_end + (100-mod_100);
+            else
+                % can extend backwards
+                i_start = i_start - (100-mod_100);
+            end
+        end
+        starts(i) = i_start;
+        ends(i) = i_end;
+    end
+end
+
+% TODO: current, only handles overlap times of multiples of 1 second
+function [s2, f, t] = nustft(x, t, f, dim, FFTLength, TimeWindow, TimeOverlap)
+    [starts, ends] = partition_time_sequence(t, TimeWindow, TimeWindow * max_window_error)
     
 end
