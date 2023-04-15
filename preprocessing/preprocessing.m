@@ -10,23 +10,29 @@ nufft_length = 100;
 
 % get letter for the 18 activities, A-S but without N
 activities = char([1:13, 15:19] + 'A' - 1);
+n_act= length(activities);
 
 time_scale = int64(1E9); % seconds to nanos
 fs = 20;
 %% load directories
-watch_accel = dir(path + "/mat/watch/accel/*.mat");
-watch_gyro = dir(path + "/mat/watch/gyro/*.mat");
-phone_accel = dir(path + "/mat/phone/accel/*.mat");
-phone_gyro = dir(path + "/mat/phone/gyro/*.mat");
+sensor_paths = struct;
+sensor_paths.w_acc = dir(path + "/mat/watch/accel/*.mat");
+sensor_paths.w_gyr  = dir(path + "/mat/watch/gyro/*.mat");
+sensor_paths.p_acc = dir(path + "/mat/phone/accel/*.mat");
+sensor_paths.p_gyr = dir(path + "/mat/phone/gyro/*.mat");
 
-%% check data to ensure subjects line up
-for i = 1:numel(watch_accel)
-    get_subj = "^data_(\d{4})_[a-z]+_[a-z]+\.mat$";
-    subject = regexp(watch_accel(i).name, get_subj, 'tokens');
-    match_subj = "^data_" + subject{1}{1} + "_[a-z]+_[a-z]+\.mat$";
-    assert(regexp(watch_gyro(i).name, match_subj) == 1, "Subject IDs do not match");
-    assert(regexp(phone_accel(i).name, match_subj) == 1, "Subject IDs do not match");
-    assert(regexp(phone_gyro(i).name, match_subj) == 1, "Subject IDs do not match");
+sensor_names = ["Watch Acceleration", "Watch Gyro", "Phone Acceleration", "Phone Gyro"];
+fn = fieldnames(sensor_paths);
+n_subj = length(sensor_paths.(fn{1}));
+% check data to ensure subjects line up
+get_subj = "^data_(\d{4})_[a-z]+_[a-z]+\.mat$";
+for i = 1:numel(sensor_paths.(fn{1}))
+    subject = regexp(sensor_paths.(fn{1})(i).name, get_subj, 'tokens');
+
+    for j = 2:numel(fn)
+        subject_o = regexp(sensor_paths.(fn{1})(i).name, get_subj, 'tokens');
+        assert(strcmp(cell2mat(subject{1}), cell2mat(subject_o{1})), "Subject IDs do not match");
+    end
 end
 
 %%
@@ -72,99 +78,115 @@ for i_sens = 0:(n_sens-1)
 end
 %%
 % iterate over subjects
-for file_index = 1:numel(watch_accel)
-    disp("Loading")
-    watch_accel_data = load_data_struct(watch_accel(file_index));
-    watch_gyro_data = load_data_struct(watch_gyro(file_index));
-    phone_accel_data = load_data_struct(phone_accel(file_index));
-    phone_gyro_data = load_data_struct(phone_gyro(file_index));
 
+f = waitbar(0);
+for file_index = 50:n_subj
+    % load data for subject
+    subject_data = load_subject(sensor_paths, file_index);
+    fn = subject_data.sensors;
+
+    waitbar(0, f, "Processing data for subject: " + subject_data.SubjectID);
+    % table for collecting data after preprocessing
     output = table('Size',[175 * length(activities), n_cols],'VariableTypes', col_types, 'VariableNames', col_names);
+
     % iterate over activities
     disp("Processing")
-    for activity_index = 1:numel(activities)
-        % load activity data for each sensor
-        activity = activities(activity_index);
+    for activity_index = 1:n_act
+        waitbar(activity_index/n_act, f);
         
-        ds = struct; % "data struct" for holding each sensors data per activity 
-
-        % check that activity data was recorded
-        if(~isfield(watch_accel_data.activity_data, activity) ...
-                || ~isfield(watch_gyro_data.activity_data, activity) ...
-                || ~isfield(phone_accel_data.activity_data, activity) ...
-                || ~isfield(phone_gyro_data.activity_data, activity))
-
-            disp("Activity: " + activity + " was not fully record for subject: " + watch_accel_data.subject ...
-                + ", skipping")
+        % check that activity data was recorded for all sensors
+        missing = false;
+        for i = 1:numel(fn)
+            missing = missing || ~isfield(subject_data.(fn{i}).activity_data, activities(activity_index));
+        end
+        if(missing)
+            disp("Activity: " + activities(activity_index) + " was not fully record for subject: " ... 
+                + subject_data.SubjectID + ", skipping")
             break
         end
-        ds.w_acc = watch_accel_data.activity_data.(activity);
-        ds.w_gyr = watch_gyro_data.activity_data.(activity);
-        ds.p_acc = phone_accel_data.activity_data.(activity);
-        ds.p_gyr = phone_gyro_data.activity_data.(activity);
-        fn = fieldnames(ds);
-        
+
+        % load activity data for subject
+        ds = load_activity(subject_data, activities(activity_index));
+        disp(ds.Activity)
         % collate data from sensors
-        
         % ASSUMPTION: any 1+ second differences between initial timestamps
         % across sensors is a result of the clocks not lining up and not a
         % result of 1+ second lag between sensor startup time. A lag on the
         % order of miliseconds is considered reasonable and not removed.
-        for i = 1:numel(fn)
-            % remove the part of offset that is greater than 1 second
-            ds.(fn{i}).TimeStampNanos = remove_offset_from_nanos(ds.(fn{i}).TimeStampNanos, time_scale);
-        end
-        beginnings = [ds.w_acc.TimeStampNanos(1), ds.w_gyr.TimeStampNanos(1), ds.p_acc.TimeStampNanos(1), ds.p_gyr.TimeStampNanos(1)];
-        nano_alignments = get_alignment(beginnings, time_scale);
-        for i = 1:numel(fn)
-            % remove the part of offset that is greater than 1 second
-            ds.(fn{i}).TimeStampNanos = ds.(fn{i}).TimeStampNanos + nano_alignments(i);
-        end
+        ds = align_sensor_times(ds, time_scale);
         
         % apply nonuniform STFT
         for i_sens = 1:numel(fn)
-            [s2, t] = nustft(xyz_to_mat(ds.(fn{i_sens})), double(ds.(fn{i_sens}).TimeStampNanos)*1E-9, fs, window_time, window_time_shift, max_window_error);
+            [s2, t] = nustft(xyz_to_mat(ds.(fn{i_sens})), single(ds.(fn{i_sens}).TimeStampNanos)*1E-9, fs, window_time, window_time_shift, max_window_error);
             % save results to table
             
+            row_offset = (activity_index-1)*175;
+            output.Time(row_offset + (1:numel(t))) = t;
+            output.SubjectID(row_offset + (1:numel(t))) = subject_data.SubjectID;
+            output.Activity(row_offset + (1:numel(t))) = ds.Activity;
             
             for i_win = 1:numel(t)
-                row_index = (activity_index-1)*175 + i_win;
-                if(i_sens == 1)
-                    % don't bother overwriting if already set
-                    output.Time(row_index) = t(i_win);
-                    output.SubjectID(row_index) = watch_accel_data.subject;
-                    output.Activity(row_index) = activity;
-                end
                 first_col = 3 + (i_sens - 1)*length(freq_names)*length(components);
                 last_col = 3 + i_sens*length(freq_names)*length(components) - 1;
-                output{row_index, first_col:last_col} = 20*log10(reshape(squeeze(s2(i_win,:,:)).', 1, n_freq*n_com));
+                output{row_offset + i_win, first_col:last_col} = 20*log10(reshape(squeeze(s2(i_win,:,:)).', 1, n_freq*n_com));
             end
         end      
     end
     % remove empty rows
-    disp("Writing")
-    if(file_index == 1)
-        writetable(output(~ismissing(output.Activity),:), output_path);
-    else
-        writetable(output(~ismissing(output.Activity),:), output_path, 'WriteMode','Append');
-    end
-    disp("Processed Subject: " + phone_gyro_data.activity_data.A.SubjectID(1))
+    writetable(output(~ismissing(output.Activity),:), output_path ...
+        + ds.SubjectID + ".csv");
 end
+close(f);
 
 %% function declarations
-function data_struct = load_data_struct(file_struct)
-    data_struct = load([file_struct.folder '\' file_struct.name]);
+function subject_data_struct = load_subject(sensor_paths_struct, subject_id)
+    fn = fieldnames(sensor_paths_struct);
+    subject_data_struct = struct;
+    for i = 1:numel(fn)
+        sensor_path = sensor_paths_struct.(fn{i});
+        file_struct = sensor_path(subject_id);
+        subject_data_struct.(fn{i}) = load([file_struct.folder '\' file_struct.name]);
+    end
+
+    subject_data_struct.SubjectID = subject_data_struct.(fn{1}).subject;
+    subject_data_struct.sensors = fn;
 end
 
+function activity_data_struct = load_activity(subject_data_struct, activity)
+    fn = subject_data_struct.sensors;
+    activity_data_struct = struct;
+    for i = 1:numel(fn)
+        sensor = subject_data_struct.(fn{i});
+        activity_data_struct.(fn{i}) = sensor.activity_data.(activity);
+    end
+    activity_data_struct.SubjectID = subject_data_struct.(fn{1}).subject;
+    activity_data_struct.Activity = activity;
+    activity_data_struct.sensors = fn;
+end
+
+% simple helper function that removes any component of t_0 greater than 1
+% second from a series of times in nanoseconds
 function new_nanos = remove_offset_from_nanos(nanos, scale)
     new_nanos = nanos - idivide(nanos(1), scale)*scale;
 end
 
-
-function alignments = get_alignment(beginnings, time_scale)
+function activity_data_struct = align_sensor_times(activity_data_struct, time_scale)
+    % heuristic: assume remove any offset greater than 1 second in inital
+    % times
     % heuristic: choose whatever ordering minimizes the average delay 
     % between beginning samples
-    n = length(beginnings);
+    fn = activity_data_struct.sensors;
+    n = numel(fn);
+
+    % save t_0 of each sensor for determing which to place first
+    beginnings = zeros(1,4, 'int64');
+    % remove the part of offset that is greater than 1 second
+    for i = 1:n
+        activity_data_struct.(fn{i}).TimeStampNanos = ...
+            remove_offset_from_nanos(activity_data_struct.(fn{i}).TimeStampNanos, time_scale);
+        beginnings(i) = activity_data_struct.(fn{i}).TimeStampNanos(1);
+    end
+    
     % calculate resulting delays for all choices of t_0
     delays = zeros(n,n, 'int64');
     for i = 1:n
@@ -172,12 +194,18 @@ function alignments = get_alignment(beginnings, time_scale)
     end
     % add 1 second to negative values to get delay value
     mask = delays<0;
-    % select minimum average delay
     delays(mask) = time_scale - delays(mask);
+    % select minimum average delay
     [~, index] = min(mean(delays,2));
-    alignments = zeros(n,n, 'int64') - beginnings(index);
+    % generate offset to align the data
+    alignments = zeros(1, n, 'int64') - beginnings(index);
     alignments(mask(index, :)) = alignments(mask(index, :)) + time_scale;
-    
+
+    % update time for each sensor
+    for i = 1:n
+        activity_data_struct.(fn{i}).TimeStampNanos = ...
+            activity_data_struct.(fn{i}).TimeStampNanos - alignments(i);
+    end
 end
 
 function matrix = xyz_to_mat(struct, sequence)
@@ -199,7 +227,7 @@ function [starts, ends, targets] = partition_time_sequence(t, t_win, t_err, nuff
         start_of_sec(i) = find(t>=(i-1), 1, 'first');
     end
     % fix sequences to be a multiple of 100 in length
-    parfor i = (t_win+1):(numel(start_of_sec))
+    for i = (t_win+1):(numel(start_of_sec))
         i_start = start_of_sec(i-t_win);
         i_end = start_of_sec(i) - 1;
         seq_len = i_end - i_start + 1;
@@ -252,7 +280,7 @@ function [s2, t] = nustft(x, t, fs, window_time, window_time_shift, max_window_e
     [x_dim, ~] = size(x);
     window_indices = 1:window_time_shift:numel(starts);
     s2 = zeros(nufft_length/2, x_dim, nufft_length/2);
-    parfor i = window_indices
+    for i = window_indices
         n = ends(i) - starts(i) + 1;
         f = double(0:(n/2-1))/double(n)*fs;
         Y = nufft(x(:,starts(i):ends(i)), t(starts(i):ends(i)), f, 2);
