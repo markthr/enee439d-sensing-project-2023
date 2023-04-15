@@ -1,4 +1,4 @@
-%% Setup
+%% Vars
 path = "J:/enee439d/datasets/wisdm-dataset";
 
 window_time = 5; % how often to process a new window in seconds
@@ -12,13 +12,15 @@ activities = char([1:13, 15:19] + 'A' - 1);
 
 time_scale = int64(1E9); % seconds to nanos
 fs = 20;
-%% load directories
-watch_accel = dir(path + "/mat/watch/accel/*.mat");
-watch_gyro = dir(path + "/mat/watch/gyro/*.mat");
-phone_accel = dir(path + "/mat/phone/accel/*.mat");
-phone_gyro = dir(path + "/mat/phone/gyro/*.mat");
+%% Load directories and check sorting
+sensor_paths = struct;
+sensor_paths.w_acc = dir(path + "/mat/watch/accel/*.mat");
+sensor_paths.w_gyr  = dir(path + "/mat/watch/gyro/*.mat");
+sensor_paths.p_acc = dir(path + "/mat/phone/accel/*.mat");
+sensor_paths.p_gyr = dir(path + "/mat/phone/gyro/*.mat");
 
-%% check data to ensure subjects line up
+sensor_names = ["Watch Acceleration", "Watch Gyro", "Phone Acceleration", "Phone Gyro"];
+% check data to ensure subjects line up
 for i = 1:numel(watch_accel)
     get_subj = "^data_(\d{4})_[a-z]+_[a-z]+\.mat$";
     subject = regexp(watch_accel(i).name, get_subj, 'tokens');
@@ -27,24 +29,88 @@ for i = 1:numel(watch_accel)
     assert(regexp(phone_accel(i).name, match_subj) == 1, "Subject IDs do not match");
     assert(regexp(phone_gyro(i).name, match_subj) == 1, "Subject IDs do not match");
 end
-%%
-ds = load_data_struct(watch_accel(1));
-%% compare FSST with and without HPF
-data_a = ds.activity_data.A;
-t = double(data_a.TimeStampNanos) * 1E-9;
-ts = mean(diff(t));
-fs = 1/ts;
-X_hp = highpass(data_a.X, 2E-4);
-%%
-[s,f,t] = fsst(data_a.X,fs);
-ax = subplot(2, 1, 1);
-waterfall(ax, f,t,abs(s)'.^2)
-% apply LPF to remove gravity
 
-[s,f,t] = fsst(X_hp,fs);
-ax = subplot(2, 1, 2);
-waterfall(ax, f,t,abs(s)'.^2)
+%% Plot Time Data for 29.A
+subject_data = load_data_struct(sensor_paths, 30);
+ds_a = load_activity(subject_data, 'A');
+ds_a = align_sensor_times(ds_a, time_scale);
 
+f = figure;
+f.Position = [800 400 800 600];
+sensor = ds_a.w_acc;
+X = xyz_to_mat(sensor);
+t = double(sensor.TimeStampNanos)*1E-9;
+components = ["X", "Y", "Z"];
+for i = 1:3
+    subplot(3,1,i)
+    plot(t(1:1000), X(i, 1:1000))
+    xlim([0, 50])
+    ylabel('m/s^2')
+    subtitle(components(i) + " Component of Watch Acceleration")
+end
+sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+xlabel('Time (s)')
+
+%% Plot Time Data for 29.S
+subject_data = load_data_struct(sensor_paths, 30);
+ds_a = load_activity(subject_data, 'S');
+ds_a = align_sensor_times(ds_a, time_scale);
+
+f = figure;
+f.Position = [800 400 800 600];
+sensor = ds_a.w_acc;
+X = xyz_to_mat(sensor);
+t = double(sensor.TimeStampNanos)*1E-9;
+components = ["X", "Y", "Z"];
+for i = 1:3
+    subplot(3,1,i)
+    plot(t(1:1000), X(i, 1:1000))
+    xlim([0, 50])
+    ylabel('m/s^2')
+    subtitle(components(i) + " Component of Watch Acceleration")
+end
+sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+xlabel('Time (s)')
+%% Plot Time Data for 29.A
+subject_data = load_data_struct(sensor_paths, 30);
+ds_a = load_activity(subject_data, 'A');
+ds_a = align_sensor_times(ds_a, time_scale);
+
+f = figure;
+f.Position = [800 400 800 600];
+sensor = ds_a.p_gyr;
+X = xyz_to_mat(sensor);
+t = double(sensor.TimeStampNanos)*1E-9;
+components = ["X", "Y", "Z"];
+for i = 1:3
+    subplot(3,1,i)
+    plot(t(1:1000), X(i, 1:1000))
+    xlim([0, 50])
+    ylabel('rad/s')
+    subtitle(components(i) + " Component of " + sensor_names(4))
+end
+sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+xlabel('Time (s)')
+%% Plot Time Data for 29.S
+subject_data = load_data_struct(sensor_paths, 30);
+ds_a = load_activity(subject_data, 'S');
+ds_a = align_sensor_times(ds_a, time_scale);
+
+f = figure;
+f.Position = [800 400 800 600];
+sensor = ds_a.p_gyr;
+X = xyz_to_mat(sensor);
+t = double(sensor.TimeStampNanos)*1E-9;
+components = ["X", "Y", "Z"];
+for i = 1:3
+    subplot(3,1,i)
+    plot(t(1:1000), X(i, 1:1000))
+    xlim([0, 50])
+    ylabel('rad/s^2')
+    subtitle(components(i) + " Component of " + sensor_names(4))
+end
+sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+xlabel('Time (s)')
 %% fsst vs stft
 subplot(2, 1, 1);
 stft(X_hp,fs, 'FrequencyRange', "onesided")
@@ -52,11 +118,20 @@ stft(X_hp,fs, 'FrequencyRange', "onesided")
 subplot(2, 1, 2);
 fsst(X_hp,fs, 'yaxis');
 
-%% make plots using nustft
+%% Plot Frequency Time Data for 29.A
+subject_data = load_data_struct(sensor_paths, 30);
+ds_a = load_activity(subject_data, 'A');
+ds_a = align_sensor_times(ds_a, time_scale);
+
+f = figure;
+f.Position = [800 400 800 600];
+
+f = (0:49)/100*20;
 for i = 1:numel(fn)
-    X = xyz_to_mat(ds.(fn{i}));
-    [s2, t] = nustft(X, double(ds.(fn{i}).TimeStampNanos)*1E-9, fs, window_time, window_time_shift, max_window_error);
-    f = (0:49)/100*20;
+    X = xyz_to_mat(ds_a.(fn{i}));
+    t = double(ds_a.(fn{i}).TimeStampNanos)*1E-9;
+    [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
+    
     subplot(2,2,i)
     surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
     axis xy; axis tight; view(0,90); c = colorbar;
@@ -65,7 +140,76 @@ for i = 1:numel(fn)
     ylabel('Frequency (Hz)')
     title([fn{i} '_X'], 'Interpreter', 'none')
 end
-sgtitle(['Subject: ', int2str(ds.(fn{1}).SubjectID(1)), ', Activity: ', activities(activity_index)])
+sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+%% Plot Frequency Time Data for 29.S
+subject_data = load_data_struct(sensor_paths, 30);
+ds_a = load_activity(subject_data, 'S');
+ds_a = align_sensor_times(ds_a, time_scale);
+
+f = figure;
+f.Position = [800 400 800 600];
+
+f = (0:49)/100*20;
+for i = 1:numel(fn)
+    X = xyz_to_mat(ds_a.(fn{i}));
+    t = double(ds_a.(fn{i}).TimeStampNanos)*1E-9;
+    [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
+    
+    subplot(2,2,i)
+    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    axis xy; axis tight; view(0,90); c = colorbar;
+    c.Label.String = 'Energy (dB)';
+    xlabel('Time (s)')
+    ylabel('Frequency (Hz)')
+    title([fn{i} '_X'], 'Interpreter', 'none')
+end
+sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+%% Plot Frequency Time Data for 30.A
+subject_data = load_data_struct(sensor_paths, 30);
+ds_a = load_activity(subject_data, 'A');
+ds_a = align_sensor_times(ds_a, time_scale);
+
+f = figure;
+f.Position = [800 400 800 600];
+
+f = (0:49)/100*20;
+for i = 1:numel(fn)
+    X = xyz_to_mat(ds_a.(fn{i}));
+    t = double(ds_a.(fn{i}).TimeStampNanos)*1E-9;
+    [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
+    
+    subplot(2,2,i)
+    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    axis xy; axis tight; view(0,90); c = colorbar;
+    c.Label.String = 'Energy (dB)';
+    xlabel('Time (s)')
+    ylabel('Frequency (Hz)')
+    title([fn{i} '_X'], 'Interpreter', 'none')
+end
+sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+%% Plot Frequency Time Data for 30.S
+subject_data = load_data_struct(sensor_paths, 30);
+ds_a = load_activity(subject_data, 'S');
+ds_a = align_sensor_times(ds_a, time_scale);
+
+f = figure;
+f.Position = [800 400 800 600];
+
+f = (0:49)/100*20;
+for i = 1:numel(fn)
+    X = xyz_to_mat(ds_a.(fn{i}));
+    t = double(ds_a.(fn{i}).TimeStampNanos)*1E-9;
+    [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
+    
+    subplot(2,2,i)
+    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    axis xy; axis tight; view(0,90); c = colorbar;
+    c.Label.String = 'Energy (dB)';
+    xlabel('Time (s)')
+    ylabel('Frequency (Hz)')
+    title([fn{i} '_X'], 'Interpreter', 'none')
+end
+sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
 %% make table
 tabulate(ds.p_acc.Group)
 %% plot time delta
@@ -125,19 +269,51 @@ end
 sgtitle(['Subject: ', int2str(ds.(fn{1}).SubjectID(1)), ', Activity: ', activities(activity_index)])
 
 %% function declarations
-function data_struct = load_data_struct(file_struct)
-    data_struct = load([file_struct.folder '\' file_struct.name]);
+function subject_data_struct = load_data_struct(sensor_paths_struct, subject_id)
+    fn = fieldnames(sensor_paths_struct);
+    subject_data_struct = struct;
+    for i = 1:numel(fn)
+        sensor_path = sensor_paths_struct.(fn{i});
+        file_struct = sensor_path(subject_id);
+        subject_data_struct.(fn{i}) = load([file_struct.folder '\' file_struct.name]);
+    end
 end
 
+function activity_data_struct = load_activity(subject_data_struct, activity)
+    fn = fieldnames(subject_data_struct);
+    activity_data_struct = struct;
+    for i = 1:numel(fn)
+        sensor = subject_data_struct.(fn{i});
+        activity_data_struct.(fn{i}) = sensor.activity_data.(activity);
+    end
+    activity_data_struct.SubjectID = subject_data_struct.(fn{1}).subject;
+    activity_data_struct.Activity = activity;
+    activity_data_struct.sensors = fn;
+end
+
+% simple helper function that removes any component of t_0 greater than 1
+% second from a series of times in nanoseconds
 function new_nanos = remove_offset_from_nanos(nanos, scale)
     new_nanos = nanos - idivide(nanos(1), scale)*scale;
 end
 
-
-function alignments = get_alignment(beginnings, time_scale)
+function activity_data_struct = align_sensor_times(activity_data_struct, time_scale)
+    % heuristic: assume remove any offset greater than 1 second in inital
+    % times
     % heuristic: choose whatever ordering minimizes the average delay 
     % between beginning samples
-    n = length(beginnings);
+    fn = activity_data_struct.sensors;
+    n = numel(fn);
+
+    % save t_0 of each sensor for determing which to place first
+    beginnings = zeros(1,4, 'int64');
+    % remove the part of offset that is greater than 1 second
+    for i = 1:n
+        activity_data_struct.(fn{i}).TimeStampNanos = ...
+            remove_offset_from_nanos(activity_data_struct.(fn{i}).TimeStampNanos, time_scale);
+        beginnings(i) = activity_data_struct.(fn{i}).TimeStampNanos(1);
+    end
+    
     % calculate resulting delays for all choices of t_0
     delays = zeros(n,n, 'int64');
     for i = 1:n
@@ -145,12 +321,18 @@ function alignments = get_alignment(beginnings, time_scale)
     end
     % add 1 second to negative values to get delay value
     mask = delays<0;
-    % select minimum average delay
     delays(mask) = time_scale - delays(mask);
+    % select minimum average delay
     [~, index] = min(mean(delays,2));
-    alignments = zeros(n,n, 'int64') - beginnings(index);
+    % generate offset to align the data
+    alignments = zeros(1, n, 'int64') - beginnings(index);
     alignments(mask(index, :)) = alignments(mask(index, :)) + time_scale;
-    
+
+    % update time for each sensor
+    for i = 1:n
+        activity_data_struct.(fn{i}).TimeStampNanos = ...
+            activity_data_struct.(fn{i}).TimeStampNanos - alignments(i);
+    end
 end
 
 function matrix = xyz_to_mat(struct, sequence)
@@ -221,7 +403,6 @@ end
 function [s2, t] = nustft(x, t, fs, window_time, window_time_shift, max_window_error)
     nufft_length = 100;
     [starts, ends, targets] = partition_time_sequence(t, window_time, window_time * max_window_error, nufft_length);
-    disp(t(ends(1:3)))
     [x_dim, ~] = size(x);
     window_indices = 1:window_time_shift:numel(starts);
     s2 = zeros(nufft_length/2, x_dim, nufft_length/2);
