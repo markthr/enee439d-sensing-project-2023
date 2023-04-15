@@ -20,14 +20,17 @@ sensor_paths.p_acc = dir(path + "/mat/phone/accel/*.mat");
 sensor_paths.p_gyr = dir(path + "/mat/phone/gyro/*.mat");
 
 sensor_names = ["Watch Acceleration", "Watch Gyro", "Phone Acceleration", "Phone Gyro"];
+fn = fieldnames(sensor_paths);
+n_subj = length(sensor_paths.(fn{1}));
 % check data to ensure subjects line up
-for i = 1:numel(sensor_paths)
-    get_subj = "^data_(\d{4})_[a-z]+_[a-z]+\.mat$";
-    subject = regexp(watch_accel(i).name, get_subj, 'tokens');
-    match_subj = "^data_" + subject{1}{1} + "_[a-z]+_[a-z]+\.mat$";
-    assert(regexp(watch_gyro(i).name, match_subj) == 1, "Subject IDs do not match");
-    assert(regexp(phone_accel(i).name, match_subj) == 1, "Subject IDs do not match");
-    assert(regexp(phone_gyro(i).name, match_subj) == 1, "Subject IDs do not match");
+get_subj = "^data_(\d{4})_[a-z]+_[a-z]+\.mat$";
+for i = 1:numel(sensor_paths.(fn{1}))
+    subject = regexp(sensor_paths.(fn{1})(i).name, get_subj, 'tokens');
+
+    for j = 2:numel(fn)
+        subject_o = regexp(sensor_paths.(fn{1})(i).name, get_subj, 'tokens');
+        assert(strcmp(cell2mat(subject{1}), cell2mat(subject_o{1})), "Subject IDs do not match");
+    end
 end
 
 %% Plot Time Data for 29.A
