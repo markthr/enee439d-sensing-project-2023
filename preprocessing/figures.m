@@ -393,16 +393,16 @@ end
 function [starts, ends, targets] = partition_time_sequence(t, t_win, t_err, nufft_length)
     t_0 = floor(t(1));
     t_f = floor(t(end));
-    start_of_sec = zeros(uint32(t_f - t_0), 1, 'uint32');
+    start_of_sec = zeros(uint32(t_f - t_0 + 1), 1, 'uint32');
     starts = zeros(length(start_of_sec)- t_win, 1, 'uint32');
     ends = zeros(length(start_of_sec)- t_win, 1, 'uint32');
-    targets = (t_0+4):t_f;
+    targets = (t_0+5):t_f;
     % get initial value for start times
     for i = 1:numel(start_of_sec)
         start_of_sec(i) = find(t>=t_0+i-1, 1, 'first');
     end
     % fix sequences to be a multiple of 100 in length
-    for i = (t_win+1):(numel(start_of_sec))
+    parfor i = (t_win+1):(numel(start_of_sec))
         i_start = start_of_sec(i-t_win);
         i_end = start_of_sec(i) - 1;
         seq_len = i_end - i_start + 1;
@@ -459,14 +459,13 @@ end
 function [s2, t] = nustft(x, t, fs, window_time, window_time_shift, max_window_error)
     nufft_length = 100;
     [starts, ends, targets] = partition_time_sequence(t, window_time, window_time * max_window_error, nufft_length);
+    
     [x_dim, ~] = size(x);
     window_indices = 1:window_time_shift:numel(starts);
-    s2 = zeros(length(targets), x_dim, nufft_length/2);
-    for i = window_indices
+    s2 = zeros(nufft_length/2, x_dim, nufft_length/2);
+    parfor i = window_indices
         n = ends(i) - starts(i) + 1;
         f = double(0:(n/2-1))/double(n)*fs;
-        x(:,starts(i):ends(i));
-        t(starts(i):ends(i));
         Y = nufft(x(:,starts(i):ends(i)), t(starts(i):ends(i)), f, 2);
         bin_size = idivide(ends(i)-starts(i)+1, nufft_length);
         if(bin_size == 1)

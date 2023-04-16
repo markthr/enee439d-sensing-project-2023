@@ -1,6 +1,6 @@
 %% Setup
 path = "J:/enee439d/datasets/wisdm-dataset";
-output_path = path + "/preprocessed/wisdm.csv";
+output_path = path + "/preprocessed/wisdm_";
 
 window_time = 5; % how often to process a new window in seconds
 max_window_error = 0.1; % the maximum percent a window can be too short by 
@@ -80,17 +80,17 @@ end
 % iterate over subjects
 
 f = waitbar(0);
-for file_index = 50:n_subj
+for file_index = 1:n_subj
     % load data for subject
     subject_data = load_subject(sensor_paths, file_index);
     fn = subject_data.sensors;
 
     waitbar(0, f, "Processing data for subject: " + subject_data.SubjectID);
     % table for collecting data after preprocessing
-    output = table('Size',[175 * length(activities), n_cols],'VariableTypes', col_types, 'VariableNames', col_names);
+    output = table('Size',[180 * length(activities), n_cols],'VariableTypes', col_types, 'VariableNames', col_names);
 
     % iterate over activities
-    disp("Processing")
+    row_offset = 0;
     for activity_index = 1:n_act
         waitbar(activity_index/n_act, f);
         
@@ -100,14 +100,13 @@ for file_index = 50:n_subj
             missing = missing || ~isfield(subject_data.(fn{i}).activity_data, activities(activity_index));
         end
         if(missing)
-            disp("Activity: " + activities(activity_index) + " was not fully record for subject: " ... 
+            disp("Activity: " + activities(activity_index) + " was recorded on all sensors for subject: " ... 
                 + subject_data.SubjectID + ", skipping")
-            break
+            continue
         end
 
         % load activity data for subject
         ds = load_activity(subject_data, activities(activity_index));
-        disp(ds.Activity)
         % collate data from sensors
         % ASSUMPTION: any 1+ second differences between initial timestamps
         % across sensors is a result of the clocks not lining up and not a
@@ -116,24 +115,34 @@ for file_index = 50:n_subj
         ds = align_sensor_times(ds, time_scale);
         
         % apply nonuniform STFT
+        time_lengths = zeros(1, 4);
         for i_sens = 1:numel(fn)
             [s2, t] = nustft(xyz_to_mat(ds.(fn{i_sens})), single(ds.(fn{i_sens}).TimeStampNanos)*1E-9, fs, window_time, window_time_shift, max_window_error);
             % save results to table
+            t_len = numel(t);
+            output.Time(row_offset + (1:t_len)) = t;
+            output.SubjectID(row_offset + (1:t_len)) = subject_data.SubjectID;
+            output.Activity(row_offset + (1:t_len)) = ds.Activity;
+            first_col = 3 + (i_sens - 1)*length(freq_names)*length(components) + 1;
+            last_col = 3 + i_sens*length(freq_names)*length(components);
             
-            row_offset = (activity_index-1)*175;
-            output.Time(row_offset + (1:numel(t))) = t;
-            output.SubjectID(row_offset + (1:numel(t))) = subject_data.SubjectID;
-            output.Activity(row_offset + (1:numel(t))) = ds.Activity;
-            
-            for i_win = 1:numel(t)
-                first_col = 3 + (i_sens - 1)*length(freq_names)*length(components);
-                last_col = 3 + i_sens*length(freq_names)*length(components) - 1;
-                output{row_offset + i_win, first_col:last_col} = 20*log10(reshape(squeeze(s2(i_win,:,:)).', 1, n_freq*n_com));
-            end
-        end      
+            % flatten frequency matrix at every time and calculate db
+            % permute is used to get the desired interleaving of the
+            % frequency matrix. Without permute, matlab flattens the matrix
+            % in column major order which would order x_f0, y_f0, z_f0,
+            % x_f1... and so on but it is desired to group dimensions
+            % together so permuting the dimensions of the 3d array gives
+            % row major ordering which keeps components together.
+            s2_db = 20*log10(reshape(permute(s2, [1 3 2]), [], 150));
+            % save result matrix into output
+            output{row_offset + (1:size(s2_db, 1)), first_col:last_col} = s2_db;
+            % save time length for determining next row offset
+            time_lengths(i_sens) = t_len;
+        end
+        row_offset = row_offset + min(time_lengths);
     end
     % remove empty rows
-    writetable(output(~ismissing(output.Activity),:), output_path ...
+    writetable(output(1:row_offset,:), output_path ...
         + ds.SubjectID + ".csv");
 end
 close(f);
@@ -220,16 +229,16 @@ end
 function [starts, ends, targets] = partition_time_sequence(t, t_win, t_err, nufft_length)
     t_0 = floor(t(1));
     t_f = floor(t(end));
-    start_of_sec = zeros(uint32(t_f - t_0), 1, 'uint32');
+    start_of_sec = zeros(uint32(t_f - t_0 + 1), 1, 'uint32');
     starts = zeros(length(start_of_sec)- t_win, 1, 'uint32');
     ends = zeros(length(start_of_sec)- t_win, 1, 'uint32');
-    targets = (t_0+4):t_f;
+    targets = (t_0+5):t_f;
     % get initial value for start times
     for i = 1:numel(start_of_sec)
         start_of_sec(i) = find(t>=t_0+i-1, 1, 'first');
     end
     % fix sequences to be a multiple of 100 in length
-    for i = (t_win+1):(numel(start_of_sec))
+    parfor i = (t_win+1):(numel(start_of_sec))
         i_start = start_of_sec(i-t_win);
         i_end = start_of_sec(i) - 1;
         seq_len = i_end - i_start + 1;
@@ -290,7 +299,7 @@ function [s2, t] = nustft(x, t, fs, window_time, window_time_shift, max_window_e
     [x_dim, ~] = size(x);
     window_indices = 1:window_time_shift:numel(starts);
     s2 = zeros(nufft_length/2, x_dim, nufft_length/2);
-    for i = window_indices
+    parfor i = window_indices
         n = ends(i) - starts(i) + 1;
         f = double(0:(n/2-1))/double(n)*fs;
         Y = nufft(x(:,starts(i):ends(i)), t(starts(i):ends(i)), f, 2);
