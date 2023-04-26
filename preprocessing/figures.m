@@ -38,8 +38,8 @@ subject_data = load_subject(sensor_paths, 30);
 ds_a = load_activity(subject_data, 'A');
 ds_a = align_sensor_times(ds_a, time_scale);
 
-f = figure;
-f.Position = [800 400 800 600];
+fig = figure;
+fig.Position = [800 400 800 600];
 sensor = ds_a.w_acc;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
@@ -59,8 +59,8 @@ subject_data = load_subject(sensor_paths, 30);
 ds_a = load_activity(subject_data, 'S');
 ds_a = align_sensor_times(ds_a, time_scale);
 
-f = figure;
-f.Position = [800 400 800 600];
+fig = figure;
+fig.Position = [800 400 800 600];
 sensor = ds_a.w_acc;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
@@ -79,8 +79,8 @@ subject_data = load_subject(sensor_paths, 50);
 ds = load_activity(subject_data, 'M');
 ds = align_sensor_times(ds, time_scale);
 
-f = figure;
-f.Position = [800 400 800 600];
+fig = figure;
+fig.Position = [800 400 800 600];
 sensor = ds.w_acc;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
@@ -98,8 +98,8 @@ subject_data = load_subject(sensor_paths, 30);
 ds_a = load_activity(subject_data, 'A');
 ds_a = align_sensor_times(ds_a, time_scale);
 
-f = figure;
-f.Position = [800 400 800 600];
+fig = figure;
+fig.Position = [800 400 800 600];
 sensor = ds_a.p_gyr;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
@@ -118,8 +118,8 @@ subject_data = load_subject(sensor_paths, 30);
 ds_a = load_activity(subject_data, 'S');
 ds_a = align_sensor_times(ds_a, time_scale);
 
-f = figure;
-f.Position = [800 400 800 600];
+fig = figure;
+fig.Position = [800 400 800 600];
 sensor = ds_a.p_gyr;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
@@ -145,8 +145,8 @@ subject_data = load_subject(sensor_paths, 30);
 ds_a = load_activity(subject_data, 'A');
 ds_a = align_sensor_times(ds_a, time_scale);
 
-f = figure;
-f.Position = [800 400 800 600];
+fig = figure;
+fig.Position = [800 400 800 600];
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)
@@ -191,8 +191,8 @@ subject_data = load_subject(sensor_paths, 30);
 ds_a = load_activity(subject_data, 'A');
 ds_a = align_sensor_times(ds_a, time_scale);
 
-f = figure;
-f.Position = [800 400 800 600];
+fig = figure;
+fig.Position = [800 400 800 600];
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)
@@ -214,8 +214,8 @@ subject_data = load_subject(sensor_paths, 30);
 ds_a = load_activity(subject_data, 'S');
 ds_a = align_sensor_times(ds_a, time_scale);
 
-f = figure;
-f.Position = [800 400 800 600];
+fig = figure;
+fig.Position = [800 400 800 600];
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)

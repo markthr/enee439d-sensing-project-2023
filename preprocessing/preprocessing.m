@@ -1,6 +1,6 @@
 %% Setup
 path = "J:/enee439d/datasets/wisdm-dataset";
-output_path = path + "/preprocessed/wisdm_";
+output_path = path + "/preprocessed/wisdm_fft_";
 
 window_time = 5; % how often to process a new window in seconds
 max_window_error = 0.1; % the maximum percent a window can be too short by 
@@ -302,7 +302,9 @@ function [s2, t] = nustft(x, t, fs, window_time, window_time_shift, max_window_e
     parfor i = window_indices
         n = ends(i) - starts(i) + 1;
         f = double(0:(n/2-1))/double(n)*fs;
-        Y = nufft(x(:,starts(i):ends(i)), t(starts(i):ends(i)), f, 2);
+        %Y = nufft(x(:,starts(i):ends(i)), t(starts(i):ends(i)), f, 2);
+        Y = fft(x(:,starts(i):ends(i)), [], 2);
+        Y = Y(:, 1:n/2);
         bin_size = idivide(ends(i)-starts(i)+1, nufft_length);
         if(bin_size == 1)
             s2(i,:,:) = abs(Y .* conj(Y));
