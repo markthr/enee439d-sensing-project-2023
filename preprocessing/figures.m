@@ -35,12 +35,12 @@ end
 
 %% Plot Time Data for 29.A
 subject_data = load_subject(sensor_paths, 30);
-ds_a = load_activity(subject_data, 'A');
-ds_a = align_sensor_times(ds_a, time_scale);
+ds = load_activity(subject_data, 'A');
+ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
 fig.Position = [800 400 800 600];
-sensor = ds_a.w_acc;
+sensor = ds.w_acc;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
 components = ["X", "Y", "Z"];
@@ -51,17 +51,17 @@ for i = 1:3
     ylabel('m/s^2')
     subtitle(components(i) + " Component of Watch Acceleration")
 end
-sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 xlabel('Time (s)')
 
 %% Plot Time Data for 29.S
 subject_data = load_subject(sensor_paths, 30);
-ds_a = load_activity(subject_data, 'S');
-ds_a = align_sensor_times(ds_a, time_scale);
+ds = load_activity(subject_data, 'S');
+ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
 fig.Position = [800 400 800 600];
-sensor = ds_a.w_acc;
+sensor = ds.w_acc;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
 components = ["X", "Y", "Z"];
@@ -72,7 +72,7 @@ for i = 1:3
     ylabel('m/s^2')
     subtitle(components(i) + " Component of Watch Acceleration")
 end
-sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 xlabel('Time (s)')
 %% Plot Time Data for 49.M
 subject_data = load_subject(sensor_paths, 50);
@@ -95,12 +95,12 @@ sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 xlabel('Time (s)')
 %% Plot Time Data for 29.A
 subject_data = load_subject(sensor_paths, 30);
-ds_a = load_activity(subject_data, 'A');
-ds_a = align_sensor_times(ds_a, time_scale);
+ds = load_activity(subject_data, 'A');
+ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
 fig.Position = [800 400 800 600];
-sensor = ds_a.p_gyr;
+sensor = ds.p_gyr;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
 components = ["X", "Y", "Z"];
@@ -111,16 +111,16 @@ for i = 1:3
     ylabel('rad/s')
     subtitle(components(i) + " Component of " + sensor_names(4))
 end
-sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 xlabel('Time (s)')
 %% Plot Time Data for 29.S
 subject_data = load_subject(sensor_paths, 30);
-ds_a = load_activity(subject_data, 'S');
-ds_a = align_sensor_times(ds_a, time_scale);
+ds = load_activity(subject_data, 'S');
+ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
 fig.Position = [800 400 800 600];
-sensor = ds_a.p_gyr;
+sensor = ds.p_gyr;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
 components = ["X", "Y", "Z"];
@@ -131,7 +131,7 @@ for i = 1:3
     ylabel('rad/s^2')
     subtitle(components(i) + " Component of " + sensor_names(4))
 end
-sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 xlabel('Time (s)')
 %% fsst vs stft
 subplot(2, 1, 1);
@@ -142,16 +142,16 @@ fsst(X_hp,fs, 'yaxis');
 
 %% Plot Frequency Time Data for 29.A
 subject_data = load_subject(sensor_paths, 30);
-ds_a = load_activity(subject_data, 'A');
-ds_a = align_sensor_times(ds_a, time_scale);
+ds = load_activity(subject_data, 'A');
+ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
 fig.Position = [800 400 800 600];
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)
-    X = xyz_to_mat(ds_a.(fn{i}));
-    t = double(ds_a.(fn{i}).TimeStampNanos)*1E-9;
+    X = xyz_to_mat(ds.(fn{i}));
+    t = double(ds.(fn{i}).TimeStampNanos)*1E-9;
     [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
     
     subplot(2,2,i)
@@ -162,19 +162,42 @@ for i = 1:numel(fn)
     ylabel('Frequency (Hz)')
     title([fn{i} '_X'], 'Interpreter', 'none')
 end
-sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
+%% Reconstruction for 29.A
+subject_data = load_subject(sensor_paths, 30);
+ds = load_activity(subject_data, 'A');
+ds = align_sensor_times(ds, time_scale);
+
+fig = figure;
+fig.Position = [800 400 800 600];
+
+f = (0:49)/100*20;
+for i = 1:numel(fn)
+    X = xyz_to_mat(ds.(fn{i}));
+    t = double(ds.(fn{i}).TimeStampNanos)*1E-9;
+    [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
+    
+    subplot(2,2,i)
+    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    axis xy; axis tight; view(0,90); c = colorbar;
+    c.Label.String = 'Energy (dB)';
+    xlabel('Time (s)')
+    ylabel('Frequency (Hz)')
+    title([fn{i} '_X'], 'Interpreter', 'none')
+end
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 %% Plot Frequency Time Data for 29.S
 subject_data = load_subject(sensor_paths, 30);
-ds_a = load_activity(subject_data, 'S');
-ds_a = align_sensor_times(ds_a, time_scale);
+ds = load_activity(subject_data, 'S');
+ds = align_sensor_times(ds, time_scale);
 
 f = figure;
 f.Position = [800 400 800 600];
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)
-    X = xyz_to_mat(ds_a.(fn{i}));
-    t = double(ds_a.(fn{i}).TimeStampNanos)*1E-9;
+    X = xyz_to_mat(ds.(fn{i}));
+    t = double(ds.(fn{i}).TimeStampNanos)*1E-9;
     [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
     
     subplot(2,2,i)
@@ -185,19 +208,19 @@ for i = 1:numel(fn)
     ylabel('Frequency (Hz)')
     title([fn{i} '_X'], 'Interpreter', 'none')
 end
-sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 %% Plot Frequency Time Data for 30.A
 subject_data = load_subject(sensor_paths, 30);
-ds_a = load_activity(subject_data, 'A');
-ds_a = align_sensor_times(ds_a, time_scale);
+ds = load_activity(subject_data, 'A');
+ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
 fig.Position = [800 400 800 600];
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)
-    X = xyz_to_mat(ds_a.(fn{i}));
-    t = double(ds_a.(fn{i}).TimeStampNanos)*1E-9;
+    X = xyz_to_mat(ds.(fn{i}));
+    t = double(ds.(fn{i}).TimeStampNanos)*1E-9;
     [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
     
     subplot(2,2,i)
@@ -208,19 +231,19 @@ for i = 1:numel(fn)
     ylabel('Frequency (Hz)')
     title([fn{i} '_X'], 'Interpreter', 'none')
 end
-sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 %% Plot Frequency Time Data for 30.S
 subject_data = load_subject(sensor_paths, 30);
-ds_a = load_activity(subject_data, 'S');
-ds_a = align_sensor_times(ds_a, time_scale);
+ds = load_activity(subject_data, 'S');
+ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
 fig.Position = [800 400 800 600];
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)
-    X = xyz_to_mat(ds_a.(fn{i}));
-    t = double(ds_a.(fn{i}).TimeStampNanos)*1E-9;
+    X = xyz_to_mat(ds.(fn{i}));
+    t = double(ds.(fn{i}).TimeStampNanos)*1E-9;
     [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
     
     subplot(2,2,i)
@@ -231,7 +254,7 @@ for i = 1:numel(fn)
     ylabel('Frequency (Hz)')
     title([fn{i} '_X'], 'Interpreter', 'none')
 end
-sgtitle("Subject: " + ds_a.SubjectID +", Activity: " + ds_a.Activity)
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 %% Plot Frequency Time Data for 49.M
 subject_data = load_subject(sensor_paths, 50);
 ds = load_activity(subject_data, 'M');
@@ -313,6 +336,23 @@ for i = 1:numel(fn)
 
 end
 sgtitle(['Subject: ', int2str(ds.(fn{1}).SubjectID(1)), ', Activity: ', activities(activity_index)])
+%% orientation test
+subject_data = load_subject(sensor_paths, 19);
+ds = load_activity(subject_data, 'A');
+ds = align_sensor_times(ds, time_scale);
+% align time and make same length
+X_acc = xyz_to_mat(ds.w_acc);
+X_acc = X_acc(:, 2:(end-1));
+X_gyr = xyz_to_mat(ds.w_gyr);
+fuse = imufilter('SampleRate',20);
+%%
+q = fuse(X_acc.',X_gyr.');
+time = (0:size(X_acc,2)-1)/20;
+plot(time,eulerd(q,'ZYX','frame'))
+title('Orientation Estimate')
+legend('Z-axis', 'Y-axis', 'X-axis')
+xlabel('Time (s)')
+ylabel('Rotation (degrees)')
 
 %% function declarations
 function subject_data_struct = load_subject(sensor_paths_struct, subject_id)
