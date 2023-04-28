@@ -282,20 +282,61 @@ xlabel('Time (s)')
 %% make table
 tabulate(ds.p_acc.Group)
 %% plot time delta
+subject_data = load_subject(sensor_paths, 1);
+ds = load_activity(subject_data, 'S');
 seconds_w_acc = double(ds.w_acc.TimeStampNanos(400:900))*1E-9;
 plot(401:900, diff(seconds_w_acc))
 ylim([0, 0.4])
 xlabel('Sample')
 ylabel('Time Difference')
-%% a
-Y = nufft(double(ds.p_acc.hh_vec), double(ds.p_acc.TimeStampNanos), [], 2);
-disp(size(Y))
-for group_index = 1:numel(ds.p_acc.Group(end))
-    unfft(ds.p_gyr.hh_vec(i,:))
-    
-end
+%% NUSTFT for nonuniform data
+subject_data = load_subject(sensor_paths, 1);
+ds = load_activity(subject_data, 'S');
+ds = align_sensor_times(ds, time_scale);
+f = figure;
+f.Position = [800 400 800 600];
 
-%%
+freqs = (0:49)/100*20;
+for i = 1:2
+    X = xyz_to_mat(ds.(fn{i}));
+    t = double(ds.(fn{i}).TimeStampNanos(400:900))*1E-9;
+    [s2, t] = nustft(X(:, 400:900), t, fs, window_time, window_time_shift, max_window_error);
+    
+    subplot(2,1,i)
+    surf(t,freqs,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    axis xy; axis tight; view(0,90); c = colorbar;
+    c.Label.String = 'Energy (dB)';
+    xlabel('Time (s)')
+    ylabel('Frequency (Hz)')
+    title([fn{i} '_X'], 'Interpreter', 'none')
+end
+sgtitle("NUSTFT: Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
+%% Plot STFT for nonuniform data
+subject_data = load_subject(sensor_paths, 1);
+ds = load_activity(subject_data, 'S');
+ds = align_sensor_times(ds, time_scale);
+f = figure;
+f.Position = [800 400 800 600];
+
+freqs = (0:49)/100*20;
+for i = 1:2
+    X = xyz_to_mat(ds.(fn{i}));
+    t = double(ds.(fn{i}).TimeStampNanos(400:900))*1E-9;
+    
+    subplot(2,1,i)
+    fs= 1/mean(diff(t));
+    [s, f, tau] = stft(X(1,400:900), fs, Window=rectwin(100), FrequencyRange="onesided", overlap=80, FFTLength = 100);
+    s2 = abs(s).^2;
+    surf(t(int32(tau*fs)),f,20*log10(s2),'EdgeColor','none');
+    axis xy; axis tight; view(0,90); c = colorbar;
+    c.Label.String = 'Energy (dB)';
+    xlabel('Time (s)')
+    ylabel('Frequency (Hz)')
+    title([fn{i} '_X'], 'Interpreter', 'none')
+    title([fn{i} '_X'], 'Interpreter', 'none')
+end
+sgtitle("STFT: Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
+
 
 %%
 activity_data = watch_accel_data.activity_data.A;
@@ -312,15 +353,59 @@ raw = activity_data.Y;
 subplot(2,1,2)
 surf(t, f, 20*log10(abs(s).^2), 'EdgeColor', 'none');
 %%
-fs = 1000;
-t = 0:1/fs:2;
-ts = duration(0,0,1/fs);
+activity_data = watch_accel_data.activity_data.A;
+ts_avg = mean(diff(activity_data.TimeStampNanos));
+w = kaiser(ceil(10E9/ts_avg),10);
+raw = activity_data.Y;
+[s, f, t] = stft(raw, 1E9/ts_avg, Window=w, FrequencyRange="onesided", overlap=199);
+subplot(2,1,1)
+surf(t, f, 20*log10(abs(s).^2), 'EdgeColor', 'none');
+activity_data = watch_accel_data.activity_data.B;
+ts_avg = mean(diff(activity_data.TimeStampNanos));
+raw = activity_data.Y;
+[s, f, t] = stft(raw, 1E9/ts_avg, Window=w, FrequencyRange="onesided", overlap=199);
+subplot(2,1,2)
+surf(t, f, 20*log10(abs(s).^2), 'EdgeColor', 'none');
+%%
+subject_data = load_subject(sensor_paths, 15);
+ds = load_activity(subject_data, 'R');
+ds = align_sensor_times(ds, time_scale);
+fig = figure;
+fig.Position = [400 200 1200 600];
 
-x = chirp(t,100,1,200,'quadratic');
+X = xyz_to_mat(ds.w_acc);
+seconds_w_acc = double(ds.w_acc.TimeStampNanos(1:end))*1E-9;
+subplot(2,2,1)
+plot(2:length(seconds_w_acc), diff(seconds_w_acc) * 1.0E3 )
+ylim([0, 0.4])
+xlabel('Sample')
+ylabel('Time Difference (ms)')
+xlim([0 length(seconds_w_acc)])
+ylim([49 50])
+title("Sampling Time")
 
-fsst(x,ts,'yaxis')
 
-title('Quadratic Chirp')
+subplot(2,2,3)
+Y = fft(X(3, 1:100));
+L = length(X(3, 1:100));
+P2 = abs(Y/L);
+P1 = P2(1:L/2+1);
+P1(2:end-1) = 2*P1(2:end-1);
+fs = 1/(mean(diff(ds.w_acc.TimeStampNanos))*1E-9);
+f =  fs*(0:(L/2))/L;
+plot(f,20*log10(P1.^2)) 
+title("Single-Sided FFT of Z(t) for First 5 Seconds")
+xlabel("frequency (Hz)")
+ylabel("Energy (dB)")
+axis tight
+
+subplot(2,2,[2 4])
+stft(X(3,:), fs, Window=rectwin(100), OverlapLength=20,FFTLength=100, FrequencyRange="onesided")
+title("Single-Sided Amplitude Spectrum of Z(t)")
+axis tight
+
+
+sgtitle("Z Component of Watch Acceleration for Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 %%
 for i = 1:numel(fn)
     X = xyz_to_mat(ds.(fn{i}));
