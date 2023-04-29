@@ -38,24 +38,11 @@ for path in mat_paths:
 # iterate over all the raw files
 for i, directory in enumerate(raw_paths):
     # convert every file into a .mat then write files to output
-    for j, file in enumerate(directory.glob('*.txt')):
-        print("Loading")
+    for file in directory.glob('*.txt'):
         raw_df = pd.read_csv(file, names = col_names, converters = {col_names[-1] : remove_semi})
+    
         # subject id the same for the whole file, extract the value from the first row
         subject_id = raw_df.head(1)[col_names[0]].values[0]
-
-        print(f'Processing {directory.parent.name}_{directory.name} for subject={subject_id} ')
-        # duplicate rows pollute data (overfit certain subjects), remove them
-        raw_df.drop_duplicates(inplace=True)
-        mdict = {'subject': subject_id, 'activity_data': {}}
-        
-        # split on activity
-        split_dfs = raw_df.groupby(raw_df[col_names[1]].values)
-        for g, df in split_dfs:
-            # transform pd dataframe to dictionary that MATLAB will understand
-            # this also forces column vectors (arbitrary)
-            mdict['activity_data'][g] = {name: np.reshape(col.values, (len(col.values), 1)) for name, col in df.items()}
-        print("saving")
-        savemat(mat_paths[i] / (file.stem + '.mat'), mdict)
-        print("\r", end="")
-        print("saved")
+        duplicates = raw_df.duplicated().any()
+        if(duplicates):
+            print(f'Duplicate rows for subject: {subject_id} in directory: {data_folders[i]}')
