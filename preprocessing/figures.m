@@ -5,6 +5,7 @@ window_time = 5; % how often to process a new window in seconds
 max_window_error = 0.1; % the maximum percent a window can be too short by 
 window_time_shift = 1;
 nufft_length = 100;
+fig_pos = [800 400 800 600];
 % Setting window_memory = 0 indicates that only the current window should be included for processing.
 
 % get letter for the 18 activities, A-S but without N
@@ -39,14 +40,14 @@ ds = load_activity(subject_data, 'A');
 ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
-fig.Position = [800 400 800 600];
+fig.Position = fig_pos;
 sensor = ds.w_acc;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
 components = ["X", "Y", "Z"];
 for i = 1:3
     subplot(3,1,i)
-    plot(t(1:1000), X(i, 1:1000))
+    plot(t(1:1000), X(1:1000, i))
     xlim([0, 50])
     ylabel('m/s^2')
     subtitle(components(i) + " Component of Watch Acceleration")
@@ -60,14 +61,14 @@ ds = load_activity(subject_data, 'S');
 ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
-fig.Position = [800 400 800 600];
+fig.Position = fig_pos;
 sensor = ds.w_acc;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
 components = ["X", "Y", "Z"];
 for i = 1:3
     subplot(3,1,i)
-    plot(t(1:1000), X(i, 1:1000))
+    plot(t(1:1000), X(1:1000, i))
     xlim([0, 50])
     ylabel('m/s^2')
     subtitle(components(i) + " Component of Watch Acceleration")
@@ -80,14 +81,14 @@ ds = load_activity(subject_data, 'M');
 ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
-fig.Position = [800 400 800 600];
+fig.Position = fig_pos;
 sensor = ds.w_acc;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
 components = ["X", "Y", "Z"];
 for i = 1:3
     subplot(3,1,i)
-    plot(t, X(i, :))
+    plot(t, X(:, i))
     ylabel('m/s^2')
     subtitle(components(i) + " Component of Watch Acceleration")
 end
@@ -99,14 +100,14 @@ ds = load_activity(subject_data, 'A');
 ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
-fig.Position = [800 400 800 600];
+fig.Position = fig_pos;
 sensor = ds.p_gyr;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
 components = ["X", "Y", "Z"];
 for i = 1:3
     subplot(3,1,i)
-    plot(t(1:1000), X(i, 1:1000))
+    plot(t(1:1000), X(1:1000, i))
     xlim([0, 50])
     ylabel('rad/s')
     subtitle(components(i) + " Component of " + sensor_names(4))
@@ -119,26 +120,20 @@ ds = load_activity(subject_data, 'S');
 ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
-fig.Position = [800 400 800 600];
+fig.Position = fig_pos;
 sensor = ds.p_gyr;
 X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
 components = ["X", "Y", "Z"];
 for i = 1:3
     subplot(3,1,i)
-    plot(t(1:1000), X(i, 1:1000))
+    plot(t(1:1000), X(1:1000, i))
     xlim([0, 50])
     ylabel('rad/s^2')
     subtitle(components(i) + " Component of " + sensor_names(4))
 end
 sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 xlabel('Time (s)')
-%% fsst vs stft
-subplot(2, 1, 1);
-stft(X_hp,fs, 'FrequencyRange', "onesided")
-% apply LPF to remove gravity
-subplot(2, 1, 2);
-fsst(X_hp,fs, 'yaxis');
 
 %% Plot Frequency Time Data for 29.A
 subject_data = load_subject(sensor_paths, 30);
@@ -155,30 +150,7 @@ for i = 1:numel(fn)
     [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
     
     subplot(2,2,i)
-    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
-    axis xy; axis tight; view(0,90); c = colorbar;
-    c.Label.String = 'Energy (dB)';
-    xlabel('Time (s)')
-    ylabel('Frequency (Hz)')
-    title([fn{i} '_X'], 'Interpreter', 'none')
-end
-sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
-%% Reconstruction for 29.A
-subject_data = load_subject(sensor_paths, 30);
-ds = load_activity(subject_data, 'A');
-ds = align_sensor_times(ds, time_scale);
-
-fig = figure;
-fig.Position = [800 400 800 600];
-
-f = (0:49)/100*20;
-for i = 1:numel(fn)
-    X = xyz_to_mat(ds.(fn{i}));
-    t = double(ds.(fn{i}).TimeStampNanos)*1E-9;
-    [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
-    
-    subplot(2,2,i)
-    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    surf(t,f,20*log10(squeeze(s2(:,:,1)).'),'EdgeColor','none');   
     axis xy; axis tight; view(0,90); c = colorbar;
     c.Label.String = 'Energy (dB)';
     xlabel('Time (s)')
@@ -201,7 +173,7 @@ for i = 1:numel(fn)
     [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
     
     subplot(2,2,i)
-    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    surf(t,f,20*log10(squeeze(s2(:,:,1)).'),'EdgeColor','none');   
     axis xy; axis tight; view(0,90); c = colorbar;
     c.Label.String = 'Energy (dB)';
     xlabel('Time (s)')
@@ -224,7 +196,7 @@ for i = 1:numel(fn)
     [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
     
     subplot(2,2,i)
-    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    surf(t,f,20*log10(squeeze(s2(:,:,1)).'),'EdgeColor','none');   
     axis xy; axis tight; view(0,90); c = colorbar;
     c.Label.String = 'Energy (dB)';
     xlabel('Time (s)')
@@ -247,7 +219,7 @@ for i = 1:numel(fn)
     [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
     
     subplot(2,2,i)
-    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    surf(t,f,20*log10(squeeze(s2(:,:,1)).'),'EdgeColor','none');   
     axis xy; axis tight; view(0,90); c = colorbar;
     c.Label.String = 'Energy (dB)';
     xlabel('Time (s)')
@@ -270,7 +242,7 @@ for i = 1:numel(fn)
     [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
 
     subplot(2,2,i)
-    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    surf(t,f,20*log10(squeeze(s2(:,:,1)).'),'EdgeColor','none');   
     axis xy; axis tight; view(0,90); c = colorbar;
     c.Label.String = 'Energy (dB)';
     xlabel('Time (s)')
@@ -279,8 +251,6 @@ for i = 1:numel(fn)
 end
 sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 xlabel('Time (s)')
-%% make table
-tabulate(ds.p_acc.Group)
 %% plot time delta
 subject_data = load_subject(sensor_paths, 1);
 ds = load_activity(subject_data, 'S');
@@ -300,10 +270,10 @@ freqs = (0:49)/100*20;
 for i = 1:2
     X = xyz_to_mat(ds.(fn{i}));
     t = double(ds.(fn{i}).TimeStampNanos(400:900))*1E-9;
-    [s2, t] = nustft(X(:, 400:900), t, fs, window_time, window_time_shift, max_window_error);
+    [s2, t] = nustft(X(400:900, :), t, fs, window_time, window_time_shift, max_window_error);
     
     subplot(2,1,i)
-    surf(t,freqs,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    surf(t,freqs,20*log10(squeeze(s2(:,:,1)).'),'EdgeColor','none');   
     axis xy; axis tight; view(0,90); c = colorbar;
     c.Label.String = 'Energy (dB)';
     xlabel('Time (s)')
@@ -337,35 +307,6 @@ for i = 1:2
 end
 sgtitle("STFT: Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 
-
-%%
-activity_data = watch_accel_data.activity_data.A;
-ts_avg = mean(diff(activity_data.TimeStampNanos));
-w = kaiser(ceil(10E9/ts_avg),10);
-raw = activity_data.Y;
-[s, f, t] = stft(raw, 1E9/ts_avg, Window=w, FrequencyRange="onesided", overlap=199);
-subplot(2,1,1)
-surf(t, f, 20*log10(abs(s).^2), 'EdgeColor', 'none');
-activity_data = watch_accel_data.activity_data.B;
-ts_avg = mean(diff(activity_data.TimeStampNanos));
-raw = activity_data.Y;
-[s, f, t] = stft(raw, 1E9/ts_avg, Window=w, FrequencyRange="onesided", overlap=199);
-subplot(2,1,2)
-surf(t, f, 20*log10(abs(s).^2), 'EdgeColor', 'none');
-%%
-activity_data = watch_accel_data.activity_data.A;
-ts_avg = mean(diff(activity_data.TimeStampNanos));
-w = kaiser(ceil(10E9/ts_avg),10);
-raw = activity_data.Y;
-[s, f, t] = stft(raw, 1E9/ts_avg, Window=w, FrequencyRange="onesided", overlap=199);
-subplot(2,1,1)
-surf(t, f, 20*log10(abs(s).^2), 'EdgeColor', 'none');
-activity_data = watch_accel_data.activity_data.B;
-ts_avg = mean(diff(activity_data.TimeStampNanos));
-raw = activity_data.Y;
-[s, f, t] = stft(raw, 1E9/ts_avg, Window=w, FrequencyRange="onesided", overlap=199);
-subplot(2,1,2)
-surf(t, f, 20*log10(abs(s).^2), 'EdgeColor', 'none');
 %%
 subject_data = load_subject(sensor_paths, 15);
 ds = load_activity(subject_data, 'R');
@@ -386,8 +327,8 @@ title("Sampling Time")
 
 
 subplot(2,2,3)
-Y = fft(X(3, 1:100));
-L = length(X(3, 1:100));
+Y = fft(X(1:100, 3));
+L = length(X(1:100, 3));
 P2 = abs(Y/L);
 P1 = P2(1:L/2+1);
 P1(2:end-1) = 2*P1(2:end-1);
@@ -400,7 +341,7 @@ ylabel("Energy (dB)")
 axis tight
 
 subplot(2,2,[2 4])
-stft(X(3,:), fs, Window=rectwin(100), OverlapLength=20,FFTLength=100, FrequencyRange="onesided")
+stft(X(:,3), fs, Window=rectwin(100), OverlapLength=20,FFTLength=100, FrequencyRange="onesided")
 title("Single-Sided Amplitude Spectrum of Z(t)")
 axis tight
 
@@ -412,7 +353,7 @@ for i = 1:numel(fn)
     [s2, t] = nustft(X, double(ds.(fn{i}).TimeStampNanos)*1E-9, fs, window_time, window_time_shift, max_window_error);
     f = (0:49)/100*20;
     subplot(2,2,i)
-    surf(t,f,20*log10(squeeze(s2(:,1,:)).'),'EdgeColor','none');   
+    surf(t,f,20*log10(squeeze(s2(:,:,1)).'),'EdgeColor','none');   
     axis xy; axis tight; view(0,90); c = colorbar;
     c.Label.String = 'Energy (dB)';
     xlabel('Time (s)')
@@ -420,19 +361,19 @@ for i = 1:numel(fn)
     title([fn{i} '_X'], 'Interpreter', 'none')
 
 end
-sgtitle(['Subject: ', int2str(ds.(fn{1}).SubjectID(1)), ', Activity: ', activities(activity_index)])
+sgtitle(['Subject: ', int2str(ds.(fn{1}).SubjectID(1)), ', Activity: ', ds.Activity])
 %% orientation test
 subject_data = load_subject(sensor_paths, 19);
 ds = load_activity(subject_data, 'A');
 ds = align_sensor_times(ds, time_scale);
 % align time and make same length
 X_acc = xyz_to_mat(ds.w_acc);
-X_acc = X_acc(:, 2:(end-1));
+X_acc = X_acc(2:(end-1), :);
 X_gyr = xyz_to_mat(ds.w_gyr);
 fuse = imufilter('SampleRate',20);
 %%
-q = fuse(X_acc.',X_gyr.');
-time = (0:size(X_acc,2)-1)/20;
+q = fuse(X_acc,X_gyr);
+time = (0:size(X_acc,1)-1)/20;
 plot(time,eulerd(q,'ZYX','frame'))
 title('Orientation Estimate')
 legend('Z-axis', 'Y-axis', 'X-axis')
@@ -508,9 +449,9 @@ end
 
 function matrix = xyz_to_mat(struct, sequence)
     if(~exist('sequence','var'))
-        matrix = [struct.X; struct.Y; struct.Z];
+        matrix = [struct.X, struct.Y, struct.Z];
     else
-        matrix = [struct.X(sequence); struct.Y(sequence); struct.Z(sequence)];
+        matrix = [struct.X(sequence), struct.Y(sequence), struct.Z(sequence)];
     end
     
 end
@@ -585,18 +526,18 @@ function [s2, t] = nustft(x, t, fs, window_time, window_time_shift, max_window_e
     nufft_length = 100;
     [starts, ends, targets] = partition_time_sequence(t, window_time, window_time * max_window_error, nufft_length);
     
-    [x_dim, ~] = size(x);
+    [~, x_dim] = size(x);
     window_indices = 1:window_time_shift:numel(starts);
-    s2 = zeros(nufft_length/2, x_dim, nufft_length/2);
+    s2 = zeros(length(targets), nufft_length/2, x_dim);
     parfor i = window_indices
         n = ends(i) - starts(i) + 1;
         f = double(0:(n/2-1))/double(n)*fs;
-        Y = nufft(x(:,starts(i):ends(i)), t(starts(i):ends(i)), f, 2);
+        Y = nufft(x(starts(i):ends(i), :), t(starts(i):ends(i)), f, 1);
         bin_size = idivide(ends(i)-starts(i)+1, nufft_length);
         if(bin_size == 1)
             s2(i,:,:) = abs(Y .* conj(Y));
         else
-            s2(i,:,:) = squeeze(sum(reshape(abs(Y.*conj(Y)),bin_size, x_dim, [])))./double(bin_size);
+            s2(i,:,:) = squeeze(sum(reshape(abs(Y.*conj(Y)),bin_size, [], 3), 1))./double(bin_size);
         end
     end
     t = targets;

@@ -133,8 +133,9 @@ for file_index = 1:n_subj
             % x_f1... and so on but it is desired to group dimensions
             % together so permuting the dimensions of the 3d array gives
             % row major ordering which keeps components together.
-            s2_db = 20*log10(reshape(permute(s2, [1 3 2]), [], 150));
-            % save result matrix into output
+            s2_db = log10(reshape(permute(s2, [1 3 2]), [], 150));
+            % save result matrix into output, no factor of 20 to improve
+            % training
             output{row_offset + (1:size(s2_db, 1)), first_col:last_col} = s2_db;
             % save time length for determining next row offset
             time_lengths(i_sens) = t_len;
@@ -219,12 +220,13 @@ end
 
 function matrix = xyz_to_mat(struct, sequence)
     if(~exist('sequence','var'))
-        matrix = [struct.X; struct.Y; struct.Z];
+        matrix = [struct.X, struct.Y, struct.Z];
     else
-        matrix = [struct.X(sequence); struct.Y(sequence); struct.Z(sequence)];
+        matrix = [struct.X(sequence), struct.Y(sequence), struct.Z(sequence)];
     end
     
 end
+
 
 function [starts, ends, targets] = partition_time_sequence(t, t_win, t_err, nufft_length)
     t_0 = floor(t(1));
@@ -296,18 +298,18 @@ function [s2, t] = nustft(x, t, fs, window_time, window_time_shift, max_window_e
     nufft_length = 100;
     [starts, ends, targets] = partition_time_sequence(t, window_time, window_time * max_window_error, nufft_length);
     
-    [x_dim, ~] = size(x);
+    [~, x_dim] = size(x);
     window_indices = 1:window_time_shift:numel(starts);
-    s2 = zeros(nufft_length/2, x_dim, nufft_length/2);
+    s2 = zeros(length(targets), nufft_length/2, x_dim);
     parfor i = window_indices
         n = ends(i) - starts(i) + 1;
         f = double(0:(n/2-1))/double(n)*fs;
-        Y = nufft(x(:,starts(i):ends(i)), t(starts(i):ends(i)), f, 2);
+        Y = nufft(x(starts(i):ends(i), :), t(starts(i):ends(i)), f, 1);
         bin_size = idivide(ends(i)-starts(i)+1, nufft_length);
         if(bin_size == 1)
             s2(i,:,:) = abs(Y .* conj(Y));
         else
-            s2(i,:,:) = squeeze(sum(reshape(abs(Y.*conj(Y)),bin_size, x_dim, [])))./double(bin_size);
+            s2(i,:,:) = squeeze(sum(reshape(abs(Y.*conj(Y)),bin_size, [], 3), 1))./double(bin_size);
         end
     end
     t = targets;
