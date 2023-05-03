@@ -100,7 +100,7 @@ for file_index = 1:n_subj
             missing = missing || ~isfield(subject_data.(fn{i}).activity_data, activities(activity_index));
         end
         if(missing)
-            disp("Activity: " + activities(activity_index) + " was recorded on all sensors for subject: " ... 
+            disp("Activity: " + activities(activity_index) + " was not recorded on all sensors for subject: " ... 
                 + subject_data.SubjectID + ", skipping")
             continue
         end

@@ -16,12 +16,14 @@ chest_accel =  "/chest/accel"
 chest_gyro = "/chest/gyro"
 
 data_folder = "/Protocol"
+opt_folder = "/Optional"
 mat_folder = "/mat"
 
 output_paths = [hand_accel, hand_gyro, chest_accel, chest_gyro]
 
 
 data_path =  Path(path + data_folder)
+opt_data_path = Path(path + opt_folder)
 mat_paths = [None]*4
 
 for i, output_path in enumerate(output_paths):
@@ -70,6 +72,12 @@ for i, file in enumerate(data_path.glob('*.dat')):
     print(f'Loading data for subject: {subject_id}')
     
     raw_df = pd.read_csv(file, sep=' ', usecols=col_indices, names = col_names)
+
+    # check for opt data, add it if it is found
+    opt_file = opt_data_path / file.name
+    if(opt_file.exists()) :
+        print("Appending optional data")
+        raw_df = pd.concat((raw_df, pd.read_csv(opt_file, sep=' ', usecols=col_indices, names = col_names)), axis='index')
     for j, col_pattern in enumerate(col_patterns):
         print(f'Processing {locations[j//2]}_{sensors[j%2]} for subject={subject_id} ')
         out_df = raw_df.filter(regex = col_pattern, axis = 'columns')
