@@ -1,6 +1,6 @@
 %% Setup
 path = "J:/enee439d/datasets/wisdm-dataset";
-output_path = path + "/preprocessed/wisdm_fft_";
+output_path = path + "/preprocessed/wisdm_";
 
 window_time = 5; % how often to process a new window in seconds
 max_window_error = 0.1; % the maximum percent a window can be too short by 
