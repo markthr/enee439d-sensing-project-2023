@@ -4,7 +4,7 @@ import pandas as pd
 from scipy.io import savemat
 from pathlib import Path
 
-# change this path to the path to the WISDM dataset on you device
+# change this path to the path to the WISDM dataset on your device
 path = "J:/enee439d/datasets/wisdm-dataset"
 
 # do not change these paths
@@ -26,11 +26,12 @@ def remove_semi(string):
     else:
         return float(string)
 
-# ensure necessary folders for output exist
 for i, data_folder in enumerate(data_folders):
     raw_paths[i] = Path(path + raw + data_folder)
     mat_paths[i] = Path(path + mat + data_folder)
-    
+
+
+# ensure necessary folders for output exist   
 for path in mat_paths:
     if(not path.exists()):
         path.mkdir(parents=True)
