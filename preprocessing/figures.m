@@ -5,7 +5,7 @@ window_time = 5; % how often to process a new window in seconds
 max_window_error = 0.1; % the maximum percent a window can be too short by 
 window_time_shift = 1;
 nufft_length = 100;
-fig_pos = [800 400 800 600];
+fig_pos = [400 200 800 600];
 % Setting window_memory = 0 indicates that only the current window should be included for processing.
 
 % get letter for the 18 activities, A-S but without N
@@ -141,7 +141,7 @@ ds = load_activity(subject_data, 'A');
 ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
-fig.Position = [800 400 800 600];
+fig.Position = fig_pos;
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)
@@ -164,7 +164,7 @@ ds = load_activity(subject_data, 'S');
 ds = align_sensor_times(ds, time_scale);
 
 f = figure;
-f.Position = [800 400 800 600];
+f.Position = fig_pos;
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)
@@ -187,7 +187,7 @@ ds = load_activity(subject_data, 'A');
 ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
-fig.Position = [800 400 800 600];
+fig.Position = fig_pos;
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)
@@ -210,7 +210,7 @@ ds = load_activity(subject_data, 'S');
 ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
-fig.Position = [800 400 800 600];
+fig.Position = fig_pos;
 
 f = (0:49)/100*20;
 for i = 1:numel(fn)
@@ -233,7 +233,7 @@ ds = load_activity(subject_data, 'M');
 ds = align_sensor_times(ds, time_scale);
 
 fig = figure;
-fig.Position = [800 400 800 600];
+fig.Position = fig_pos;
 f = (0:49)/100*20;
 for i = 1:numel(fn)
     sensor = ds.(fn{i});
@@ -264,7 +264,7 @@ subject_data = load_subject(sensor_paths, 1);
 ds = load_activity(subject_data, 'S');
 ds = align_sensor_times(ds, time_scale);
 f = figure;
-f.Position = [800 400 800 600];
+f.Position = fig_pos;
 
 freqs = (0:49)/100*20;
 for i = 1:2
@@ -286,7 +286,7 @@ subject_data = load_subject(sensor_paths, 1);
 ds = load_activity(subject_data, 'S');
 ds = align_sensor_times(ds, time_scale);
 f = figure;
-f.Position = [800 400 800 600];
+f.Position = fig_pos;
 
 freqs = (0:49)/100*20;
 for i = 1:2
@@ -295,7 +295,7 @@ for i = 1:2
     
     subplot(2,1,i)
     fs= 1/mean(diff(t));
-    [s, f, tau] = stft(X(1,400:900), fs, Window=rectwin(100), FrequencyRange="onesided", overlap=80, FFTLength = 100);
+    [s, f, tau] = stft(X(400:900,1), fs, Window=rectwin(100), FrequencyRange="onesided", overlap=80, FFTLength = 100);
     s2 = abs(s).^2;
     surf(t(int32(tau*fs)),f,20*log10(s2),'EdgeColor','none');
     axis xy; axis tight; view(0,90); c = colorbar;
@@ -362,23 +362,6 @@ for i = 1:numel(fn)
 
 end
 sgtitle(['Subject: ', int2str(ds.(fn{1}).SubjectID(1)), ', Activity: ', ds.Activity])
-%% orientation test
-subject_data = load_subject(sensor_paths, 19);
-ds = load_activity(subject_data, 'A');
-ds = align_sensor_times(ds, time_scale);
-% align time and make same length
-X_acc = xyz_to_mat(ds.w_acc);
-X_acc = X_acc(2:(end-1), :);
-X_gyr = xyz_to_mat(ds.w_gyr);
-fuse = imufilter('SampleRate',20);
-%%
-q = fuse(X_acc,X_gyr);
-time = (0:size(X_acc,1)-1)/20;
-plot(time,eulerd(q,'ZYX','frame'))
-title('Orientation Estimate')
-legend('Z-axis', 'Y-axis', 'X-axis')
-xlabel('Time (s)')
-ylabel('Rotation (degrees)')
 
 %% function declarations
 function subject_data_struct = load_subject(sensor_paths_struct, subject_id)

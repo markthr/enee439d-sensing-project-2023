@@ -28,7 +28,7 @@ xlabel('Time (s)')
 %% Plot Orientation data based on Interpolation
 fs = 20;
 subject_data = load_subject(sensor_paths, 19);
-ds = load_activity(subject_data, 'A');
+ds = load_activity(subject_data, 'R');
 ds = align_sensor_times(ds, time_scale);
 % align time and make same length
 X_acc_nu = xyz_to_mat(ds.w_acc);
@@ -40,13 +40,21 @@ X_acc = resample(X_acc_nu(2:(end-1), :), t_acc_nu(2:(end-1)), fs, 'pchip', Dimen
 X_gyr = resample(X_gyr_nu, t_gyr_nu, fs, 'pchip', Dimension = 1);
 fuse = imufilter('SampleRate',20);
 %%
-q = fuse(X_acc,X_gyr);
+[q, ang] = fuse(X_acc,X_gyr);
 time = (0:size(X_acc,1)-1)/20;
-plot(time,eulerd(q,'Z YX','frame'))
+plot(time,eulerd(q,'ZYX','frame'))
 title('Orientation Estimate')
 legend('Z-axis', 'Y-axis', 'X-axis')
 xlabel('Time (s)')
 ylabel('Rotation (degrees)')
+%%
+rmat = rotmat(q,"frame");
+
+grav_dist = sqrt(sum((rmat(:,3,:)-[0;0;1]).^2, 1));
+
+figure;
+plot(squeeze(grav_dist));
+title("Euclidean Distance to Gravity");
 %% Interpolated Time Delta for oversampled
 subject_data = load_subject(sensor_paths, 1);
 ds = load_activity(subject_data, 'S');
@@ -82,7 +90,8 @@ hold off;
 fs = 20;
 thresh_diff = fs * 2 / 20;
 % outputs the last index before a gap that exceeds the threshold
-segment_ends = find(diff(t) > thresh_diff);
+segment_ends = [find(diff(t) > thresh_diff); 0];
+segment_ends(end) = length(t);
 
 total_len = 0;
 pred_len = 0;
@@ -91,23 +100,34 @@ segment_times = cell(length(segment_ends),1);
 segment_values = cell(length(segment_ends),1);
 for index = 1:numel(segment_ends)
     i_end = segment_ends(index);
-    [Y, t_Y] = resample(X(i_start:i_end, :), t(i_start:i_end), fs, 'pchip');
+    % TODO: correct treatment of t_0
+    times = t(i_start:i_end);
+    times(1) = floor(fs*times(1))/fs;
+    [Y, t_Y] = resample(X(i_start:i_end, :), times, fs, 'pchip');
     
     segment_times{index} = t_Y;
     segment_values{index} = Y;
 
-    i_start = i_end;
+    i_start = i_end + 1;
 end
 
+
+X_ug = nan(round(fs*(segment_times{end}(end) - segment_times{1}(1))) + 1, 3);
 % uniform sampled signal with gaps
-X_ug = cat(1, segment_values{:});
-t_ug = cat(1, segment_times{:});
+
+
+for index = 1:numel(segment_times)
+    i_start = round(segment_times{index}(1)*fs) + 1;
+    i_end = round(segment_times{index}(end)*fs) + 1;
+    X_ug(i_start:i_end, :) =   segment_values{index};
+end
 %%
-autoreg_len = 100;
-autoreg_order = 40;
-plot(t_ug, X_ug)
+autoreg_len = 150;
+autoreg_order = 150;
+
 y = fillgaps(X_ug, autoreg_len, autoreg_order);
 plot(y);
+%%
 
 %%
 function X = segmented_resampling(X, segments)
