@@ -24,7 +24,44 @@ for i = 1:3
 end
 sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 xlabel('Time (s)')
+%% compare frequency spectrum of resampled and nonuniform
+subject_data = load_subject(sensor_paths, 50);
+ds = load_activity(subject_data, 'M');
+ds = align_sensor_times(ds, time_scale);
+fs = 20;
+fig = figure;
+fig.Position = fig_pos;
 
+f = (0:49)/100*20;
+for i = 1:2
+    X = xyz_to_mat(ds.(fn{i}));
+    t = double(ds.(fn{i}).TimeStampNanos)*1E-9;
+    [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
+    
+    subplot(2,2,i)
+    surf(t,f,20*log10(squeeze(s2(:,:,1)).'),'EdgeColor','none');   
+    axis xy; axis tight; view(0,90); c = colorbar;
+    c.Label.String = 'Energy (dB)';
+    xlabel('Time (s)')
+    ylabel('Frequency (Hz)')
+    title([fn{i} '_X'], 'Interpreter', 'none')
+end
+for i = 1:2
+    X_nu = xyz_to_mat(ds.(fn{i}));
+    t_nu = double(ds.(fn{i}).TimeStampNanos)*1E-9;
+    X = gap_aware_resample(X_nu, t_nu, fs, 2);
+    t = (0 : (length(X)-1))/fs;
+    [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
+
+    subplot(2,2,i+2)
+    surf(t,f,20*log10(squeeze(s2(:,:,1)).'),'EdgeColor','none');   
+    axis xy; axis tight; view(0,90); c = colorbar;
+    c.Label.String = 'Energy (dB)';
+    xlabel('Time (s)')
+    ylabel('Frequency (Hz)')
+    title([fn{i} '_X'], 'Interpreter', 'none')
+end
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 %% Plot Orientation data based on Interpolation
 fs = 20;
 subject_data = load_subject(sensor_paths, 19);
@@ -112,24 +149,17 @@ for index = 1:numel(segment_ends)
 end
 
 
-X_ug = nan(round(fs*(segment_times{end}(end) - segment_times{1}(1))) + 1, 3);
+
 % uniform sampled signal with gaps
 
 
-for index = 1:numel(segment_times)
-    i_start = round(segment_times{index}(1)*fs) + 1;
-    i_end = round(segment_times{index}(end)*fs) + 1;
-    X_ug(i_start:i_end, :) =   segment_values{index};
-end
-%%
-autoreg_len = 150;
-autoreg_order = 150;
 
-y = fillgaps(X_ug, autoreg_len, autoreg_order);
+%%
+
+y = gap_aware_resample(X, t, fs, 2);
+
 plot(y);
 %%
 
-%%
-function X = segmented_resampling(X, segments)
+%% functions
 
-end
