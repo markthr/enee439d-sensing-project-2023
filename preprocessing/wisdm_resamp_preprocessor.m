@@ -1,6 +1,6 @@
 %% Setup
 path = "J:/enee439d/datasets/wisdm-dataset";
-output_path = path + "/preprocessed/kalman/wisdm_";
+output_path = path + "/preprocessed/resamp/wisdm_";
 
 window_time = 5; % how often to process a new window in seconds
 max_window_error = 0.1; % the maximum percent a window can be too short by 
@@ -118,7 +118,9 @@ for file_index = 1:n_subj
         % apply nonuniform STFT
         time_lengths = zeros(1, 4);
         for i_sens = 1:numel(fn)
-            [s2, t] = nustft(xyz_to_mat(ds.(fn{i_sens})), single(ds.(fn{i_sens}).TimeStampNanos)*1E-9, fs, window_time, window_time_shift, max_window_error);
+            [s, ~,  t] = stft(xyz_to_mat(ds.(fn{i_sens})), fs, Window=kaiser(100,5),  FFTLength=100, OverlapLength=80, FrequencyRange='onesided', OutputTimeDimension = "downrows");
+            s  = s(:, 1:50, :); % trim off frequencies above Nyquist
+            s2 = abs(s).^2; % take magnitude
             % save results to table
             t_len = numel(t);
             output.Time(row_offset + (1:t_len)) = t;
@@ -134,7 +136,7 @@ for file_index = 1:n_subj
             % x_f1... and so on but it is desired to group dimensions
             % together so permuting the dimensions of the 3d array gives
             % row major ordering which keeps components together.
-            s2_db = log10(reshape(permute(s2, [1 3 2]), [], 150));
+            s2_db = log10(reshape(permute(s2, [1, 3, 2]), [], 150));
             % save result matrix into output, no factor of 20 to improve
             % training
             output{row_offset + (1:size(s2_db, 1)), first_col:last_col} = s2_db;

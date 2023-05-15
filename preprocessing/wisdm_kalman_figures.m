@@ -25,8 +25,8 @@ end
 sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 xlabel('Time (s)')
 %% compare frequency spectrum of resampled and nonuniform
-subject_data = load_subject(sensor_paths, 50);
-ds = load_activity(subject_data, 'M');
+subject_data = load_subject(sensor_paths, 1);
+ds = load_activity(subject_data, 'A');
 ds = align_sensor_times(ds, time_scale);
 fs = 20;
 fig = figure;
@@ -46,15 +46,23 @@ for i = 1:2
     ylabel('Frequency (Hz)')
     title([fn{i} '_X'], 'Interpreter', 'none')
 end
+
+fcuts = [8.5 9];
+mags = [1 0];
+devs = [0.1 0.05];
+
+[n,Wn,beta,ftype] = kaiserord(fcuts,mags,devs,fs);
+hh = fir1(99,Wn,ftype,kaiser(100,beta),'noscale');
 for i = 1:2
     X_nu = xyz_to_mat(ds.(fn{i}));
     t_nu = double(ds.(fn{i}).TimeStampNanos)*1E-9;
     X = gap_aware_resample(X_nu, t_nu, fs, 2);
+     % X = filter(hh, 1, X, [], 1);
     t = (0 : (length(X)-1))/fs;
-    [s2, t] = nustft(X, t, fs, window_time, window_time_shift, max_window_error);
+    [s, f,  t] = stft(X, fs, Window=kaiser(100,5),  FFTLength=100, OverlapLength=80, FrequencyRange='onesided');
 
     subplot(2,2,i+2)
-    surf(t,f,20*log10(squeeze(s2(:,:,1)).'),'EdgeColor','none');   
+    surf(t,f(1:50), 20*log10(abs(squeeze(s(1:50,:,1))).^2),'EdgeColor','none');   
     axis xy; axis tight; view(0,90); c = colorbar;
     c.Label.String = 'Energy (dB)';
     xlabel('Time (s)')

@@ -39,7 +39,7 @@ for path in mat_paths:
 # iterate over all the raw files
 for i, directory in enumerate(raw_paths):
     # convert every file into a .mat then write files to output
-    for j, file in enumerate(directory.glob('*.txt')):
+    for j, file in enumerate(directory.glob('*1602*.txt')):
         print("Loading")
         raw_df = pd.read_csv(file, names = col_names, converters = {col_names[-1] : remove_semi})
         # subject id the same for the whole file, extract the value from the first row
