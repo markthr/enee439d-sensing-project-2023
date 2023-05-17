@@ -11,7 +11,7 @@ X = xyz_to_mat(sensor);
 t = double(sensor.TimeStampNanos)*1E-9;
 Y = resample(X, t, fs, 'pchip', Dimension = 1);
 components = ["X", "Y", "Z"];
-N = 1000;
+N = 100;
 for i = 1:3
     subplot(3,1,i)
     hold on;
@@ -25,7 +25,7 @@ end
 sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 xlabel('Time (s)')
 %% compare frequency spectrum of resampled and nonuniform
-subject_data = load_subject(sensor_paths, 1);
+subject_data = load_subject(sensor_paths, 25);
 ds = load_activity(subject_data, 'A');
 ds = align_sensor_times(ds, time_scale);
 fs = 20;
@@ -59,7 +59,7 @@ for i = 1:2
     X = gap_aware_resample(X_nu, t_nu, fs, 2);
      % X = filter(hh, 1, X, [], 1);
     t = (0 : (length(X)-1))/fs;
-    [s, f,  t] = stft(X, fs, Window=kaiser(100,5),  FFTLength=100, OverlapLength=80, FrequencyRange='onesided');
+    [s, f,  t] = stft(X, fs, Window=chebwin(100,35),  FFTLength=100, OverlapLength=80, FrequencyRange='onesided');
 
     subplot(2,2,i+2)
     surf(t,f(1:50), 20*log10(abs(squeeze(s(1:50,:,1))).^2),'EdgeColor','none');   
@@ -67,13 +67,69 @@ for i = 1:2
     c.Label.String = 'Energy (dB)';
     xlabel('Time (s)')
     ylabel('Frequency (Hz)')
-    title([fn{i} '_X'], 'Interpreter', 'none')
+    title([fn{i} '_X_resamp'], 'Interpreter', 'none')
+end
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
+%% compare frequency spectrum of resampled and nonuniform
+subject_data = load_subject(sensor_paths, 25);
+ds = load_activity(subject_data, 'A');
+ds = align_sensor_times(ds, time_scale);
+fs = 20;
+fig = figure;
+fig.Position = fig_pos;
+
+wins = [chebwin(100,35), rectwin(100), kaiser(100,5), hamming(100)];
+names = ["Chebyshev", "Rectangular", "Chebyshev", "Kaiser"]
+for i = 1:4
+    X_nu = xyz_to_mat(ds.(fn{1}));
+    t_nu = double(ds.(fn{1}).TimeStampNanos)*1E-9;
+    X = gap_aware_resample(X_nu, t_nu, fs, 2);
+     % X = filter(hh, 1, X, [], 1);
+    t = (0 : (length(X)-1))/fs;
+    
+    [s, f,  t] = stft(X, fs, Window=wins(:,i),  FFTLength=100, OverlapLength=80, FrequencyRange='onesided');
+
+    subplot(2,2,i)
+    surf(t,f(1:50), 20*log10(abs(squeeze(s(1:50,:,1))).^2),'EdgeColor','none');   
+    axis xy; axis tight; view(0,90); c = colorbar;
+    c.Label.String = 'Energy (dB)';
+    xlabel('Time (s)')
+    ylabel('Frequency (Hz)')
+    title([names(i)], 'Interpreter', 'none')
+end
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
+%% compare frequency spectrum of resampled and nonuniform
+subject_data = load_subject(sensor_paths, 25);
+ds = load_activity(subject_data, 'A');
+ds = align_sensor_times(ds, time_scale);
+fs = 20;
+fig = figure;
+fig.Position = fig_pos;
+
+wins = [chebwin(100,35), rectwin(100), kaiser(100,5), hamming(100)];
+names = ["Chebyshev", "Rectangular", "Kaiser", "Hamming"]
+for i = 1:4
+    X_nu = xyz_to_mat(ds.(fn{1}));
+    t_nu = double(ds.(fn{1}).TimeStampNanos)*1E-9;
+    X = gap_aware_resample(X_nu, t_nu, fs, 2);
+     % X = filter(hh, 1, X, [], 1);
+    t = (0 : (length(X)-1))/fs;
+    
+    [s, f,  t] = stft(X, fs, Window=wins(:,i),  FFTLength=100, OverlapLength=80, FrequencyRange='onesided');
+
+    subplot(2,2,i)
+    surf(t,f(1:50), 20*log10(abs(squeeze(s(1:50,:,1))).^2),'EdgeColor','none');   
+    axis xy; axis tight; view(0,90); c = colorbar;
+    c.Label.String = 'Energy (dB)';
+    xlabel('Time (s)')
+    ylabel('Frequency (Hz)')
+    title([names(i)], 'Interpreter', 'none')
 end
 sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
 %% Plot Orientation data based on Interpolation
 fs = 20;
 subject_data = load_subject(sensor_paths, 19);
-ds = load_activity(subject_data, 'R');
+ds = load_activity(subject_data, 'A');
 ds = align_sensor_times(ds, time_scale);
 % align time and make same length
 X_acc_nu = xyz_to_mat(ds.w_acc);
@@ -85,10 +141,12 @@ X_acc = resample(X_acc_nu(2:(end-1), :), t_acc_nu(2:(end-1)), fs, 'pchip', Dimen
 X_gyr = resample(X_gyr_nu, t_gyr_nu, fs, 'pchip', Dimension = 1);
 fuse = imufilter('SampleRate',20);
 %%
+fig = figure;
+fig.Position = fig_pos;
 [q, ang] = fuse(X_acc,X_gyr);
 time = (0:size(X_acc,1)-1)/20;
 plot(time,eulerd(q,'ZYX','frame'))
-title('Orientation Estimate')
+title("Orientation EstimateSubject: " + ds.SubjectID +", Activity: " + ds.Activity)
 legend('Z-axis', 'Y-axis', 'X-axis')
 xlabel('Time (s)')
 ylabel('Rotation (degrees)')
@@ -163,10 +221,24 @@ end
 
 
 %%
-
+fig = figure;
+fig.Position = fig_pos;
 y = gap_aware_resample(X, t, fs, 2);
-
-plot(y);
+subplot(3,1,1)
+plot(t, X)
+xlim([0,350])
+title("Raw Data")
+subplot(3,1,2)
+[yy, ty] = resample(X, t, fs, 'pchip');
+plot(ty, yy)
+xlim([0,350])
+title("Resampled With Autoregression")
+subplot(3,1,3)
+plot((0:(length(y)-1))/fs, y);
+xlim([0,350])
+title("Resampled With Autoregression")
+sgtitle("Subject: " + ds.SubjectID +", Activity: " + ds.Activity)
+legend("X", "Y", "Z")
 %%
 
 %% functions

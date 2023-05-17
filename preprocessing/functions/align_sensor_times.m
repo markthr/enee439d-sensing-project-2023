@@ -22,12 +22,11 @@ function activity_data_struct = align_sensor_times(activity_data_struct, time_sc
     end
     % add 1 second to negative values to get delay value
     mask = delays<0;
-    delays(mask) = time_scale - delays(mask);
+    delays(mask) =  time_scale + delays(mask);
     % select minimum average delay
     [~, index] = min(mean(delays,2));
     % generate offset to align the data
-    alignments = zeros(1, n, 'int64') - beginnings(index);
-    alignments(mask(index, :)) = alignments(mask(index, :)) + time_scale;
+    alignments = zeros(1, n, 'int64') + beginnings - delays(index, :);
 
     % update time for each sensor
     for i = 1:n

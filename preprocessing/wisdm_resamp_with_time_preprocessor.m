@@ -1,6 +1,6 @@
 %% Setup
 path = "J:/enee439d/datasets/wisdm-dataset";
-output_path = path + "/preprocessed/resamp_rect/wisdm_";
+output_path = path + "/preprocessed/resamp_with_time/wisdm_";
 
 window_time = 5; % how often to process a new window in seconds
 max_window_error = 0.1; % the maximum percent a window can be too short by 
@@ -48,13 +48,15 @@ frequencies = (0:49)/100*20;
 % table of 175 rows, 4 sensors which each have 3 readings
 % sensor readings are then passed into a 50 point NUFFT
 % add extra columns for timestamp, subject, activity
-freq_names = 0:(50-1);
+freq_names = 0:(40-1);
+t_names = 0:19;
 sens_names = {'w_acc', 'w_gyr', 'p_acc', 'p_gyr'};
 components = {'x', 'y', 'z'};
 n_com = length(components);
 n_sens = length(sens_names);
 n_freq = length(freq_names);
-n_cols = 3 + n_com*n_sens*n_freq;
+n_time = length(t_names);
+n_cols = 3 + n_com*n_sens*(n_freq + n_time);
 
 col_types = cell(1, n_cols);
 col_names = cell(1, n_cols);
@@ -69,13 +71,27 @@ col_types{3} = 'double';
 % column order: iterate over sensor, then field, and then frequency
 for i_sens = 0:(n_sens-1)
     for i_com = 0:(n_com-1)
+        offset = 3 + 1 + i_sens*n_com*(n_freq+n_time) + i_com*(n_freq);
+        % frequency components
         for i_f = 0:(n_freq-1)
-            index = 3 + 1 + i_sens*n_com*n_freq + i_com*n_freq + i_f;
-            col_names{index} = [sens_names{i_sens+1}, '_', components{i_com+1}, '_', num2str(freq_names(i_f+1))];
+            index = offset + i_f;
+            col_names{index} = ['f_', sens_names{i_sens+1}, '_', components{i_com+1}, '_', num2str(freq_names(i_f+1))];
             col_types{index} = 'double';
         end
+       
     end
+    for i_com = 0:(n_com-1)
+        offset = 3 + 1 + i_sens*n_com*(n_freq+n_time) + n_com * n_freq +  i_com*(n_time);
+        % time components
+        for i_t = 0:(n_time-1)
+            index = offset + i_t;
+            col_names{index} = ['t_', sens_names{i_sens+1}, '_', components{i_com+1}, '_', num2str(t_names(i_t+1))];
+            col_types{index} = 'double';
+        end
+       
+    end        
 end
+
 
 %%
 % iterate over subjects
@@ -118,18 +134,32 @@ for file_index = 1:n_subj
         % apply nonuniform STFT
         time_lengths = zeros(1, 4);
         for i_sens = 1:numel(fn)
+            col_offset = 3 + (i_sens - 1) * (n_freq+n_time) * n_com;
+            % indicates start of frequency components
+            first_col = col_offset + 1;
+            % indicates end of frequency components, next is start of time components
+            mid_col = col_offset + n_freq * n_com;
+            % indicates end of time components
+            last_col = col_offset + (n_freq+n_time) * n_com;
+            
             X = xyz_to_mat(ds.(fn{i_sens}));
             X = gap_aware_resample(X, double(ds.(fn{i_sens}).TimeStampNanos)*1E-9, fs, 2);
-            [s, ~,  t] = stft(X, fs, Window=chebwin(100,35),  FFTLength=100, OverlapLength=80, FrequencyRange='onesided', OutputTimeDimension = "downrows");
-            s  = s(:, 1:50, :); % trim off frequencies above Nyquist
+            [s, ~,  t] = stft(X, fs, Window=chebwin(100, 35),  FFTLength=100, ...
+                OverlapLength=80, FrequencyRange='onesided', OutputTimeDimension = "downrows");
+            
+            % trim off high frequencies
+            s  = s(:, 1:n_freq, :);
             s2 = abs(s).^2; % take magnitude
+            % have t point to end of segment instead of middle
+            t = t+2.5;
+
+
             % save results to table
             t_len = numel(t);
             output.Time(row_offset + (1:t_len)) = t;
             output.SubjectID(row_offset + (1:t_len)) = subject_data.SubjectID;
             output.Activity(row_offset + (1:t_len)) = ds.Activity;
-            first_col = 3 + (i_sens - 1)*length(freq_names)*length(components) + 1;
-            last_col = 3 + i_sens*length(freq_names)*length(components);
+            
             
             % flatten frequency matrix at every time and calculate db
             % permute is used to get the desired interleaving of the
@@ -138,10 +168,16 @@ for file_index = 1:n_subj
             % x_f1... and so on but it is desired to group dimensions
             % together so permuting the dimensions of the 3d array gives
             % row major ordering which keeps components together.
-            s2_db = log10(reshape(permute(s2, [1, 3, 2]), [], 150));
+            s2_db = log10(reshape(permute(s2, [1, 3, 2]), [], n_freq*n_com));
             % save result matrix into output, no factor of 20 to improve
             % training
-            output{row_offset + (1:size(s2_db, 1)), first_col:last_col} = s2_db;
+
+            % saving frequencies
+            output{row_offset + (1:size(s2_db, 1)), first_col:mid_col} = s2_db;
+            % save last second of samples
+            last_seconds = reshape(X(((t(1)-1)*fs+1):(fs*t(end)),:), n_time, [], 3);
+            last_seconds = reshape(permute(last_seconds, [2 1 3]), [], n_time*n_com);
+            output{row_offset + (1:size(s2_db, 1)), (mid_col+1):last_col} = last_seconds;
             % save time length for determining next row offset
             time_lengths(i_sens) = t_len;
         end
